@@ -126,7 +126,6 @@ double gDelayNextLoadMs = 0;
 @property(copy) void (^completion)(id value, NSString *error);
 @property int attemptsLeft;
 @property BOOL failNext;
-@property BOOL skipSettle;
 @property NSTimeInterval deadline;
 @property double seconds;
 @property NSUInteger attempt;
@@ -314,9 +313,30 @@ NSString *const kPrelude =
      "const applyLists = (toSelect) => local.set({ardiaReloadPending: true})"
      "  .then(() => send({what: 'applyFilterListSelection', toSelect})).then(reloadLists);"
      "const settlePending = () => local.get('ardiaReloadPending').then((b) => b.ardiaReloadPending ? reloadLists() : null);"
+     "const fromAddress = (l, id, url) => [].concat(l.available[id].contentURL || [])"
+     "  .some((u) => typeof u === 'string' && u.endsWith(url.replace(/^https?:/, '')));"
+     "const rollBackImport = () => local.get('ardiaPendingFilterImport').then((p) => {"
+     "  const saved = p.ardiaPendingFilterImport;"
+     "  if (!saved) return null;"
+     "  const url = typeof saved.url === 'string' ? saved.url : '';"
+     "  const before = Array.isArray(saved.selectedBefore) ? saved.selectedBefore : null;"
+     "  return lists().then((l) => {"
+     "    const stock = url && before ? selected(l).filter((id) => !id.includes('://') && !before.includes(id) && fromAddress(l, id, url)) : [];"
+     "    const removeCustom = custom(l).includes(url) && (((l.cache || {})[url] || {}).cached !== true || !l.available[url].entryCount);"
+     "    if (!removeCustom && !stock.length && !saved.cleaning) return local.remove('ardiaPendingFilterImport');"
+     "    return local.set({ardiaReloadPending: true, ardiaPendingFilterImport: Object.assign({}, saved, {cleaning: true})})"
+     "      .then(() => removeCustom ? send({what: 'applyFilterListSelection', toRemove: [url]}) : null)"
+     "      .then(() => stock.length ? send({what: 'applyFilterListSelection', toSelect: selected(l).filter((id) => !stock.includes(id) && (!removeCustom || id !== url))}) : null)"
+     "      .then(() => send({what: 'reloadAllFilters'})).then(reloadLists).then(lists)"
+     "      .then((after) => {"
+     "        if (removeCustom && custom(after).includes(url)) throw new Error('The rejected list is still imported.');"
+     "        if (stock.some((id) => selected(after).includes(id))) throw new Error('The rejected built-in list is still enabled.');"
+     "      }).then(() => local.remove('ardiaPendingFilterImport'));"
+     "  });"
+     "});"
      "Promise.resolve().then(() => { if (location.origin !== extensionOrigin) throw new Error(`not the extension page: ${location.href}`); })"
      ".then(() => withDeadline(ready(), 'uBlock Origin'))"
-     ".then(() => withDeadline((%@ ? Promise.resolve() : settlePending()).then(() => (%@)), 'the call'))"
+     ".then(() => withDeadline(rollBackImport().then(settlePending).then(() => (%@)), 'the call'))"
      ".then((v) => post('result', JSON.stringify({value: v === undefined ? null : v})),"
      "(e) => post('result', JSON.stringify({error: String(e && e.message || e)})))";
 
@@ -381,7 +401,7 @@ void Attempt(ACContentBlockerOp *op) {
   const double leftMs = MAX(0, (op.deadline - NSDate.timeIntervalSinceReferenceDate) * 1000);
   NSString *script = [NSString stringWithFormat:kPrelude, op.failNext ? @"true" : @"false", ScriptWith(@"%@", @[ kOffDirective ]),
                                                 ScriptWith(@"%@", @[ [@"chrome-extension://" stringByAppendingString:ExtensionId()] ]), @((long long)leftMs),
-                                                op.skipSettle ? @"true" : @"false", op.expression];
+                                                op.expression];
   const NSUInteger attempt = ++op.attempt;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((leftMs + 2000) * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
     if (op.attempt == attempt && Queues()[profile].firstObject == op) [page fail:@"the call timed out"];
@@ -414,9 +434,8 @@ void Pump(NSString *profile) {
   Attempt(op);
 }
 
-ACContentBlockerOp *Enqueue(NSString *profile, NSString *expression, double seconds, BOOL skipSettle, void (^completion)(id value, NSString *error)) {
+void CallWithin(NSString *profile, NSString *expression, double seconds, void (^completion)(id value, NSString *error)) {
   ACContentBlockerOp *op = [ACContentBlockerOp new];
-  op.skipSettle = skipSettle;
   op.profile = profile;
   op.expression = expression;
   op.completion = completion;
@@ -429,11 +448,6 @@ ACContentBlockerOp *Enqueue(NSString *profile, NSString *expression, double seco
   NSMutableArray *queue = Queues()[profile] ?: (Queues()[profile] = [NSMutableArray array]);
   [queue addObject:op];
   Pump(profile);
-  return op;
-}
-
-void CallWithin(NSString *profile, NSString *expression, double seconds, void (^completion)(id value, NSString *error)) {
-  Enqueue(profile, expression, seconds, NO, completion);
 }
 
 void Call(NSString *profile, NSString *expression, void (^completion)(id value, NSString *error)) {
@@ -886,13 +900,11 @@ void LoadContentBlocker(NSString *profile) {
                       "  const done = (after) => {"
                       "    const entry = after.available[url];"
                       "    if (!entry || entry.group !== 'custom') {"
-                      "      const stock = selected(after).find((k) => !stockBefore.has(k) && !k.includes('://'));"
+                      "      const stock = selected(after).find((k) => !stockBefore.has(k) && !k.includes('://') && fromAddress(after, k, url));"
                       "      if (stock && (((after.cache || {})[stock] || {}).cached !== true || !after.available[stock].entryCount))"
-                      "        return applyLists(selected(after).filter((k) => k !== stock)).then(() => {"
-                      "          throw new Error(`Couldn't download ${after.available[stock].title || stock}, the built-in list at that address.`);"
-                      "        });"
+                      "        throw new Error(`Couldn't download ${after.available[stock].title || stock}, the built-in list at that address.`);"
                       "      if (stock) return {id: stock, title: after.available[stock].title || stock, builtIn: true, filters: after.available[stock].entryCount || 0};"
-                      "      const already = selected(after).find((k) => !k.includes('://') && [].concat(after.available[k].contentURL || []).some((u) => typeof u === 'string' && u.endsWith(url.replace(/^https?:/, ''))));"
+                      "      const already = selected(after).find((k) => !k.includes('://') && fromAddress(after, k, url));"
                       "      if (already && (((after.cache || {})[already] || {}).cached !== true || !after.available[already].entryCount))"
                       "        throw new Error(`${after.available[already].title || already}, the built-in list at that address, hasn't downloaded yet.`);"
                       "      if (already) return {id: already, title: after.available[already].title || already, builtIn: true, filters: after.available[already].entryCount || 0};"
@@ -902,9 +914,7 @@ void LoadContentBlocker(NSString *profile) {
                       "    if (cache.cached !== true || !entry.entryCount) {"
                       "      const why = cache.cached !== true ? `Couldn't download the list${cache.lastError ? ` (${cache.lastError})` : ''}.`"
                       "        : 'No filters found at that address.';"
-                      "      return local.set({ardiaReloadPending: true})"
-                      "        .then(() => send({what: 'applyFilterListSelection', toRemove: [url]})).then(reloadLists)"
-                      "        .then(() => { throw new Error(why); });"
+                      "      throw new Error(why);"
                       "    }"
                       "    return {id: url, title: entry.title || '', builtIn: false, filters: entry.entryCount || 0};"
                       "  };"
@@ -912,21 +922,18 @@ void LoadContentBlocker(NSString *profile) {
                       "    const cache = (after.cache || {})[url] || {};"
                       "    return cache.cached === true || cache.lastError || tries <= 1 ? after : fetched(tries - 1);"
                       "  });"
-                      "  return local.set({ardiaReloadPending: true})"
+                      "  return local.set({ardiaReloadPending: true, ardiaPendingFilterImport: {url, selectedBefore: [...stockBefore]}})"
                       "    .then(() => send({what: 'applyFilterListSelection', toImport: url}))"
-                      "    .then(() => fetched(3)).then(done);"
+                      "    .then(() => fetched(3)).then(done).then((added) => local.remove('ardiaPendingFilterImport').then(() => added));"
                       "})";
-  NSString *forgetUndownloaded = @"lists().then((l) => {"
-                                  "  const url = %@;"
-                                  "  if (!custom(l).includes(url) || ((l.cache || {})[url] || {}).cached === true) return null;"
-                                  "  return send({what: 'applyFilterListSelection', toRemove: [url]})"
-                                  "    .then(() => local.set({ardiaReloadPending: true})).then(reloadLists);"
-                                  "})";
   CallWithin(kProfile, ScriptWith(script, @[ url ]), kDownloadSeconds, ^(NSDictionary *added, NSString *error) {
     if (!error && ![added isKindOfClass:NSDictionary.class]) error = @"no answer";
     if (!error) return Changed(nil, ^(NSString *changeError) { completion(added, changeError); });
-    Enqueue(kProfile, ScriptWith(forgetUndownloaded, @[ url ]), kDownloadSeconds, YES, ^(id, NSString *) {
-      Changed(nil, ^(NSString *) { completion(nil, error); });
+    CallWithin(kProfile, @"null", kDownloadSeconds, ^(id, NSString *cleanupError) {
+      if (cleanupError) return completion(nil, [NSString stringWithFormat:@"%@ List cleanup failed: %@", error, cleanupError]);
+      Changed(nil, ^(NSString *changeError) {
+        completion(nil, changeError ? [NSString stringWithFormat:@"%@ Profile synchronization failed: %@", error, changeError] : error);
+      });
     });
   });
 }
@@ -960,11 +967,24 @@ void LoadContentBlocker(NSString *profile) {
                       "  return ask().then(() => settled(true));"
                       "})";
   CallWithin(kProfile, ScriptWith(script, @[ listId, @NO ]), kDownloadSeconds, ^(id, NSString *error) {
-    if (!error)
-      for (NSString *profile in LoadedProfiles().array)
-        if (profile.length && !ardiacore_host::IsDeletedProfile(profile))
-          CallWithin(profile, ScriptWith(script, @[ listId, @YES ]), kDownloadSeconds, ^(id, NSString *) {});
-    Changed(error, completion);
+    if (error) return completion(error);
+    ForgetGoneProfiles();
+    dispatch_group_t group = dispatch_group_create();
+    __block NSString *failed;
+    for (NSString *profile in LoadedProfiles().array) {
+      if (!profile.length) continue;
+      dispatch_group_enter(group);
+      CallWithin(profile, ScriptWith(script, @[ listId, @YES ]), kDownloadSeconds, ^(id, NSString *updateError) {
+        const bool gone = !ardiacore_host::LoadedProfile(profile) || ardiacore_host::IsDeletedProfile(profile);
+        if (!gone && updateError) failed = failed ?: [NSString stringWithFormat:@"Profile %@: %@", profile, updateError];
+        dispatch_group_leave(group);
+      });
+    }
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+      Changed(nil, ^(NSString *changeError) {
+        completion(failed && changeError ? [NSString stringWithFormat:@"%@ Profile synchronization failed: %@", failed, changeError] : failed ?: changeError);
+      });
+    });
   });
 }
 

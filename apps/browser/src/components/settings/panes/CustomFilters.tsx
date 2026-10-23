@@ -10,7 +10,7 @@ import {
   type ContentBlockerState,
   type CustomFilterList,
 } from "@ardia/ardiacore";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { useTheme } from "../../../lib/theme";
 import { Button, Checkbox, Group, Row, SectionHeader, Sheet, TextField, useFormColors } from "../controls";
@@ -37,7 +37,7 @@ function agoText(ms: number, now = Date.now()) {
 }
 
 function listUrlProblem(url: string, lists: CustomFilterList[]) {
-  if (!LIST_URL.test(url)) return "Enter the list's full address, starting with https://.";
+  if (!LIST_URL.test(url)) return "Enter the list's full address, starting with http:// or https://.";
   if (lists.some((l) => l.id === url)) return "You already have this list.";
   return null;
 }
@@ -51,6 +51,7 @@ export function CustomFiltersSection({ blocker, refresh, back }: { blocker: Cont
   const [status, setStatus] = useState<Status>(null);
   const [busy, setBusy] = useState<Record<string, string>>({});
   const [listErrors, setListErrors] = useState<Record<string, string>>({});
+  const addingRef = useRef(false);
   const lists = blocker?.customLists ?? [];
   const adding = status?.kind === "busy";
 
@@ -59,9 +60,11 @@ export function CustomFiltersSection({ blocker, refresh, back }: { blocker: Cont
   };
 
   const add = async () => {
+    if (!blocker || addingRef.current) return;
     const wanted = url.trim();
     const problem = listUrlProblem(wanted, lists);
     if (problem) return setStatus({ kind: "error", text: problem });
+    addingRef.current = true;
     setStatus({ kind: "busy", text: "Downloading the list…" });
     try {
       const added = await addFilterList(wanted);
@@ -76,6 +79,7 @@ export function CustomFiltersSection({ blocker, refresh, back }: { blocker: Cont
     } catch (e) {
       setStatus({ kind: "error", text: errorText(e) });
     } finally {
+      addingRef.current = false;
       refresh();
     }
   };
@@ -181,6 +185,7 @@ function MyFiltersSheet({ onSaved, back }: { onSaved: () => void; back: () => vo
   const [text, setText] = useState<string | null>(null);
   const [saved, setSaved] = useState("");
   const [status, setStatus] = useState<Status>(null);
+  const savingRef = useRef(false);
 
   const load = () => {
     setStatus(null);
@@ -194,7 +199,8 @@ function MyFiltersSheet({ onSaved, back }: { onSaved: () => void; back: () => vo
   useEffect(load, []);
 
   const save = async () => {
-    if (text === null) return;
+    if (text === null || savingRef.current) return;
+    savingRef.current = true;
     setStatus({ kind: "busy", text: "Saving…" });
     try {
       await setUserFilters(text);
@@ -204,12 +210,18 @@ function MyFiltersSheet({ onSaved, back }: { onSaved: () => void; back: () => vo
       onSaved();
     } catch (e) {
       setStatus({ kind: "error", text: errorText(e) });
+    } finally {
+      savingRef.current = false;
     }
+  };
+
+  const close = () => {
+    if (!savingRef.current) back();
   };
 
   const dirty = text !== null && text !== saved;
   return (
-    <Sheet width={560} onClose={back}>
+    <Sheet width={560} onClose={close}>
       <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>My Filters</Text>
       <Text style={{ fontSize: 12, marginTop: 4, lineHeight: 16, color: theme.textSecondary }}>
         {"One rule per line, in uBlock Origin's syntax. To hide something on one site: x.com##[role=\"menuitem\"]:has-text(Send via Chat)"}
@@ -248,7 +260,7 @@ function MyFiltersSheet({ onSaved, back }: { onSaved: () => void; back: () => vo
           {status?.text ?? ""}
         </Text>
         {text === null && status?.kind === "error" ? <Button title="Try Again" onPress={load} /> : null}
-        <Button title={dirty ? "Cancel" : "Done"} onPress={back} />
+        <Button title={dirty ? "Cancel" : "Done"} disabled={status?.kind === "busy"} onPress={close} />
         <Button title="Save" kind="primary" disabled={!dirty || status?.kind === "busy"} onPress={() => void save()} />
       </View>
     </Sheet>

@@ -11,8 +11,9 @@ with its own data dir. Drives the real Settings components (the add field, Add L
 and Remove, the My Filters sheet) and checks what pages on a local fixture server show and fetch:
 adding a list (it applies), the add field's validation, duplicates, a missing, an HTML, an empty and an unreachable
 list (each refused and rolled back), a built-in list's address, turning a list off and on, updating it (new rules
-apply), an update that fails (the list and its rules stay), My filters, a second profile following the default
-one, everything still there after a relaunch, and removing a list. --network also adds and removes a real list
+apply), an update that fails (the list and its rules stay), My filters, repeated Enter/Add while a list downloads
+(one download), dismissing My filters while it saves (it stays open), a second profile following the default one,
+everything still there after a relaunch, and removing a list. --network also adds and removes a real list
 (gijsdev/ublock-hide-yt-shorts). Writes settings snapshots, state dumps and a log to --out (default
 /tmp/ardia-custom-filters).`;
 
@@ -135,6 +136,45 @@ const customLists = async () => (await state()).customLists ?? [];
 const sectionText = () => ui(`return texts(section()).join(" | ")`);
 const dump = async (name) => writeFileSync(join(out, `${name}.json`), JSON.stringify(await state(), null, 2));
 
+const withNativeGate = async (method, run) => {
+  await ui(`
+    if (globalThis.__customFiltersGate) throw new Error("a native gate is already installed");
+    const module = globalThis.expo.modules.ArdiaCEF;
+    const original = module[${JSON.stringify(method)}];
+    let release;
+    const ready = new Promise((resolve) => { release = resolve; });
+    const probe = { calls: [], pending: [], original };
+    probe.release = () => { clearTimeout(probe.timer); release(); };
+    probe.timer = setTimeout(probe.release, 30000);
+    const wrapped = (...args) => {
+      probe.calls.push(args);
+      const pending = ready.then(() => original.apply(module, args));
+      probe.pending.push(pending);
+      return pending;
+    };
+    module[${JSON.stringify(method)}] = wrapped;
+    if (module[${JSON.stringify(method)}] !== wrapped) {
+      probe.release();
+      throw new Error("cannot gate native method " + ${JSON.stringify(method)});
+    }
+    globalThis.__customFiltersGate = probe;
+    return true;
+  `);
+  try {
+    return await run();
+  } finally {
+    await ui(`
+      const probe = globalThis.__customFiltersGate;
+      probe.release();
+      return Promise.allSettled(probe.pending).then(() => {
+        globalThis.expo.modules.ArdiaCEF[${JSON.stringify(method)}] = probe.original;
+        delete globalThis.__customFiltersGate;
+        return true;
+      });
+    `, 120000);
+  }
+};
+
 const snapshot = async (name) => {
   await sleep(600);
   const path = join(out, `${name}.png`);
@@ -217,6 +257,7 @@ const expectPage = (seen, want) => {
   for (const [k, v] of Object.entries(want)) if (seen[k] !== v) throw new Error(`page: ${k} is ${seen[k]}, wanted ${v} (${JSON.stringify(seen)})`);
   return seen;
 };
+const waitForPage = (profileId, want, what) => until(what, async () => expectPage(await visit(profileId), want), 90000);
 const BLOCKED = { shorts: false, tracker: "blocked", trackerReachedServer: false };
 const UNBLOCKED = { shorts: true, tracker: "loaded", trackerReachedServer: true };
 
@@ -251,18 +292,37 @@ try {
 
   await rep.check("validation-not-a-url", async () => {
     const text = await addThroughUi("youtube shorts list");
-    if (!text.includes("starting with https://")) throw new Error(`no validation message: ${text}`);
+    if (!text.includes("starting with http:// or https://")) throw new Error(`no validation message: ${text}`);
     if ((await customLists()).length) throw new Error("something was added");
     return { message: text, snapshot: await snapshot("2-validation") };
   });
 
   await rep.check("add-list", async () => {
-    const text = await addThroughUi(LIST);
+    await typeUrl(LIST);
+    await until("the add field's value", () => ui(`return named("TextField", section()).memoizedProps.value === ${JSON.stringify(LIST)}`));
+    const calls = await withNativeGate("addFilterList", async () => {
+      await ui(`
+        const submit = named("TextField", section()).memoizedProps.onSubmit;
+        const add = button("Add List", section());
+        if (add.disabled) throw new Error("Add List is disabled");
+        submit();
+        submit();
+        add.onPress();
+        return true;
+      `);
+      await until("the pending add", async () => (await sectionText()).includes("Downloading the list"));
+      return ui(`named("TextField", section()).memoizedProps.onSubmit(); return globalThis.__customFiltersGate.calls.length`);
+    });
+    if (calls !== 1) throw new Error(`Enter, Enter, Add List and Enter while downloading made ${calls} native add calls, wanted 1`);
+    const text = await until("the add to finish", async () => {
+      const text = await sectionText();
+      return text.includes("Downloading the list") ? null : text;
+    }, 120000);
     if (!text.includes("Added Ardia E2E list with 2 filters")) throw new Error(`unexpected status: ${text}`);
     const l = (await customLists()).find((x) => x.id === LIST);
     if (!l?.enabled || l.filters !== 2 || !l.updatedAt || l.title !== "Ardia E2E list") throw new Error(`state: ${JSON.stringify(l)}`);
     await dump("state-1-added");
-    return { status: text, list: l, snapshot: await snapshot("3-added") };
+    return { calls, status: text, list: l, snapshot: await snapshot("3-added") };
   });
 
   await rep.check("add-list-applies", async () => expectPage(await visit(), BLOCKED));
@@ -303,7 +363,7 @@ try {
 
   await rep.check("add-builtin-address", async () => {
     const stock = bundledStockList();
-    if (!stock) return { skipped: "no off-by-default list with a ublockorigin.github.io address" };
+    if (!stock) throw new Error("Missing built-in-address fixture: bundled uBlock assets/assets.json has no off-by-default, non-language filter list with a ublockorigin.github.io address");
     const text = await addThroughUi(stock.url);
     if (!text.includes("one of the built-in lists")) throw new Error(`unexpected: ${text}`);
     const s = await state();
@@ -390,6 +450,48 @@ try {
     return { shown, snapshot: snap };
   });
 
+  await rep.check("my-filters-stays-open-while-saving", async () => {
+    const before = await cef("getUserFilters()");
+    const edited = `${before}\n! held save`;
+    await ui(`named("Row", section(), (f) => f.memoizedProps?.title === "My filters").memoizedProps.onPress(); return true`);
+    await until("the editable My Filters sheet", () => ui(`return !!sheet() && named("TextInput", sheet()).memoizedProps.editable`));
+    try {
+      const busy = await withNativeGate("setUserFilters", async () => {
+        await ui(`named("TextInput", sheet()).memoizedProps.onChangeText(${JSON.stringify(edited)}); return true`);
+        await until("the edited filters", () => ui(`return !button("Save", sheet()).disabled`));
+        await ui(`
+          const s = sheet();
+          const cancel = button("Cancel", s).onPress;
+          const close = named("Sheet", s).memoizedProps.onClose;
+          button("Save", s).onPress();
+          cancel();
+          close();
+          return true
+        `);
+        return ui(`
+          const s = sheet();
+          if (!s) throw new Error("the sheet closed while saving");
+          const cancel = button("Cancel", s);
+          if (!cancel.disabled) throw new Error("Cancel is enabled while saving");
+          cancel.onPress();
+          named("Sheet", s).memoizedProps.onClose();
+          return { calls: globalThis.__customFiltersGate.calls.length };
+        `);
+      });
+      if (busy.calls !== 1) throw new Error(`Save made ${busy.calls} native calls, wanted 1`);
+      if (!(await ui(`return !!sheet()`))) throw new Error("the sheet closed while saving");
+      const status = await until("the held save", () => ui(`const text = texts(sheet()).join(" | "); return text.includes("Saved") || text.includes("Couldn't") ? text : null`));
+      if (!status.includes("Saved")) throw new Error(status);
+      if ((await cef("getUserFilters()")).trim() !== edited.trim()) throw new Error("the held save didn't persist");
+      await ui(`button("Done", sheet()).onPress(); return true`);
+      await until("the sheet closed after saving", () => ui(`return !sheet() && !!section()`));
+      return { ...busy, status };
+    } finally {
+      await cef(`setUserFilters(${JSON.stringify(before)})`);
+      await ui(`const s = sheet(); if (s) named("Sheet", s).memoizedProps.onClose(); return true`);
+    }
+  });
+
   await rep.check("my-filters", async () => {
     await ui(`named("Row", section(), (f) => f.memoizedProps?.title === "My filters").memoizedProps.onPress(); return true`);
     await until("the My Filters sheet", () => ui(`const s = sheet(); return s && named("TextInput", s)?.memoizedProps?.editable ? true : null`));
@@ -426,6 +528,7 @@ try {
 
   await dump("state-2-before-relaunch");
   await rep.check("relaunch-persists", async () => {
+    if (!secondProfile) throw new Error("no second profile to check after relaunch");
     await inst.quit();
     await boot();
     const s = await state();
@@ -434,8 +537,8 @@ try {
     if (!(await cef(`getUserFilters()`)).includes("127.0.0.1##.e2e-mine")) throw new Error("My filters are gone");
     await dump("state-3-relaunched");
     const snap = await snapshot("9-relaunched");
-    const page = expectPage(await visit(), { ...BLOCKED, promo: false, mine: false });
-    const other = secondProfile ? expectPage(await visit(secondProfile), { ...BLOCKED, promo: false, mine: false }) : null;
+    const page = await waitForPage(undefined, { ...BLOCKED, promo: false, mine: false }, "the default profile's blocking after relaunch");
+    const other = await waitForPage(secondProfile, { ...BLOCKED, promo: false, mine: false }, "the second profile's blocking after relaunch");
     return { list: l, userFilters: s.userFilters, page, secondProfile: other, snapshot: snap };
   });
 
