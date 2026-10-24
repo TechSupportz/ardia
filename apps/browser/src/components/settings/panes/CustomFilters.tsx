@@ -68,8 +68,12 @@ export function CustomFiltersSection({ blocker, refresh, back }: { blocker: Cont
     setStatus({ kind: "busy", text: "Downloading the list…" });
     try {
       const added = await addFilterList(wanted);
-      await turnOnBlocking();
       setUrl("");
+      try {
+        await turnOnBlocking();
+      } catch (e) {
+        return setStatus({ kind: "error", text: `Added ${added.title || "the list"}, but couldn't turn blocking on: ${errorText(e)}` });
+      }
       setStatus({
         kind: "done",
         text: added.builtIn
