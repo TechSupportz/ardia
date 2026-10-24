@@ -52,6 +52,7 @@ export function CustomFiltersSection({ blocker, refresh, back }: { blocker: Cont
   const [busy, setBusy] = useState<Record<string, string>>({});
   const [listErrors, setListErrors] = useState<Record<string, string>>({});
   const addingRef = useRef(false);
+  const actingRef = useRef(new Set<string>());
   const lists = blocker?.customLists ?? [];
   const adding = status?.kind === "busy";
 
@@ -89,6 +90,8 @@ export function CustomFiltersSection({ blocker, refresh, back }: { blocker: Cont
   };
 
   const act = async (l: CustomFilterList, what: string, run: () => Promise<void>) => {
+    if (actingRef.current.has(l.id)) return;
+    actingRef.current.add(l.id);
     setBusy((b) => ({ ...b, [l.id]: what }));
     setListErrors(({ [l.id]: _, ...rest }) => rest);
     try {
@@ -96,6 +99,7 @@ export function CustomFiltersSection({ blocker, refresh, back }: { blocker: Cont
     } catch (e) {
       setListErrors((errors) => ({ ...errors, [l.id]: errorText(e) }));
     } finally {
+      actingRef.current.delete(l.id);
       setBusy(({ [l.id]: _, ...rest }) => rest);
       refresh();
     }
@@ -208,10 +212,14 @@ function MyFiltersSheet({ onSaved, back }: { onSaved: () => void; back: () => vo
     setStatus({ kind: "busy", text: "Saving…" });
     try {
       await setUserFilters(text);
-      if (text.trim() && !(await getContentBlocker()).enabled) await setContentBlockerEnabled(true);
       setSaved(text);
-      setStatus({ kind: "done", text: "Saved. Reload a page to see the change." });
       onSaved();
+      try {
+        if (text.trim() && !(await getContentBlocker()).enabled) await setContentBlockerEnabled(true);
+      } catch (e) {
+        return setStatus({ kind: "error", text: `Saved, but couldn't turn blocking on: ${errorText(e)}` });
+      }
+      setStatus({ kind: "done", text: "Saved. Reload a page to see the change." });
     } catch (e) {
       setStatus({ kind: "error", text: errorText(e) });
     } finally {
