@@ -97,12 +97,12 @@ export async function openTabMenu(windowId: string, tab: Tab) {
   const groups = moveToGroupItems(windowId, group?.id);
 
   const choice = await showMenu([
-    ...(tab.pinned
+    ...(tab.pinnedUrl
       ? [
           { id: "backToPin", title: "Back to Pinned URL", symbol: "arrow.uturn.backward", enabled: away, ...hint("\r", "command") },
           { id: "replacePin", title: "Replace Pin with Current Page", symbol: "pin", enabled: away },
           { id: "editPin", title: "Edit Pinned Page…", symbol: "pencil" },
-          ...(isCalendarUrl(tab.pinnedUrl ?? tab.url) ? [calendarMenuItem()] : []),
+          ...(tab.pinned && isCalendarUrl(tab.pinnedUrl ?? tab.url) ? [calendarMenuItem()] : []),
           sep,
         ]
       : []),

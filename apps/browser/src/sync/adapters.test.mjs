@@ -72,6 +72,7 @@ class Device {
         [
           ...(this.legacy ? [] : [adapters.pinnedRowsAdapter(profileId), adapters.pinnedOrderAdapter(profileId)]),
           adapters.pinnedAdapter(profileId),
+          ...(this.legacy ? [] : [adapters.pinnedGroupHomesAdapter(profileId)]),
           adapters.bookmarksAdapter(profileId),
           adapters.historyAdapter(profileId),
           adapters.deviceTabsAdapter(profileId, this.id, () => `${this.id}'s MacBook Pro`),
@@ -1879,4 +1880,30 @@ test("a snapshot dropping the anchor in the cycle a newer order record arrives d
   const records = { [orderKey]: { v: { a: "x" }, h: "0mvlhz4qh.0009.devB" } };
   const extraction = adapters.pinnedOrderAdapter("default").extract((k) => (k === orderKey ? { a: "x" } : undefined), () => false, Date.now(), (k) => k in records, (k) => records[k]?.v, (k) => records[k]?.h);
   assert.deepEqual(extraction.values.get(orderKey), { a: "x" }, "the group keeps waiting for its row");
+});
+
+test("a pinned group's tab keeps its home on every Mac, and Replace Pin travels", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  let docs;
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    docs = S().newTab(w, { url: "https://docs.example/" });
+    S().groupTabs([docs], { pinned: true, name: "Docs" });
+  });
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  await syncAll([a, b]);
+  const member = (d) => d.with(() => Object.values(S().tabs).find((t) => !t.pinned && model.inPinnedContainer(S(), t.id)));
+  assert.equal(member(b).pinnedUrl, "https://docs.example/");
+
+  a.with(() => S().navigated(docs, { url: "https://docs.example/deep", title: "Deep" }, { isLoading: false, canGoBack: true }));
+  await syncAll([a, b]);
+  assert.equal(member(b).pinnedUrl, "https://docs.example/", "wandering off doesn't move the home");
+
+  a.with(() => S().setPinnedUrl(docs));
+  await syncAll([a, b]);
+  assert.equal(member(b).pinnedUrl, "https://docs.example/deep", "Replace Pin reaches B");
+  assert.equal(member(a).pinnedUrl, "https://docs.example/deep");
+  assert.equal((await a.sync()).published + (await b.sync()).published, 0, "settled");
 });
