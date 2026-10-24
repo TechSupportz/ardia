@@ -71,8 +71,8 @@ class Device {
         profileId === "default" ? "p" : `p:${profileId}`,
         [
           ...(this.legacy ? [] : [adapters.pinnedRowsAdapter(profileId), adapters.pinnedOrderAdapter(profileId)]),
-          adapters.pinnedAdapter(profileId),
           ...(this.legacy ? [] : [adapters.pinnedGroupHomesAdapter(profileId)]),
+          adapters.pinnedAdapter(profileId),
           adapters.bookmarksAdapter(profileId),
           adapters.historyAdapter(profileId),
           adapters.deviceTabsAdapter(profileId, this.id, () => `${this.id}'s MacBook Pro`),
@@ -1906,4 +1906,55 @@ test("a pinned group's tab keeps its home on every Mac, and Replace Pin travels"
   assert.equal(member(b).pinnedUrl, "https://docs.example/deep", "Replace Pin reaches B");
   assert.equal(member(a).pinnedUrl, "https://docs.example/deep");
   assert.equal((await a.sync()).published + (await b.sync()).published, 0, "settled");
+});
+
+test("a Mac that joins after the pinned group's tab wandered off takes its home, and doesn't send the page as one", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  let docs;
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    docs = S().newTab(w, { url: "https://docs.example/" });
+    S().groupTabs([docs], { pinned: true, name: "Docs" });
+    S().navigated(docs, { url: "https://docs.example/deep", title: "Deep" }, { isLoading: false, canGoBack: true });
+  });
+  await a.sync();
+  const b = new Device("devB", folder);
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  await syncAll([b, a, b, a]);
+  const member = (d) => d.with(() => Object.values(S().tabs).find((t) => !t.pinned && model.inPinnedContainer(S(), t.id)));
+  assert.equal(member(b).pinnedUrl, "https://docs.example/");
+  assert.equal(member(a).pinnedUrl, "https://docs.example/");
+});
+
+test("a home that arrives before its pin isn't deleted while the pin is on its way", () => {
+  const extraction = adapters.pinnedGroupHomesAdapter("default").extract((key) => (key === "pin:t:known" ? {} : undefined), () => false, 0);
+  assert.equal(extraction.ignore("pgh:waiting"), true, "kept while its pin hasn't arrived");
+  assert.equal(extraction.ignore("pgh:known"), false, "a pin this Mac knows and no longer holds in a group loses its home");
+});
+
+test("a new home reaches a Mac whose pinned group is parked, so reopening goes there", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  let docs;
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    docs = S().newTab(w, { url: "https://docs.example/" });
+    S().groupTabs([docs], { pinned: true, name: "Docs" });
+  });
+  withWork(b);
+  let bw;
+  b.with(() => {
+    bw = S().createWindow({ url: "https://b-home.example/" });
+    S().createWindow({ profileId: "work", url: "https://b-work.example/" });
+  });
+  await syncAll([a, b]);
+  b.with(() => S().closeWindow(bw));
+  a.with(() => S().updateTab(docs, { pinnedUrl: "https://docs.example/new" }));
+  await syncAll([a, b]);
+  assert.ok(b.with(() => S().parkedPins.default?.tabs.some((p) => p.groupId)), "B parked the group when its window closed");
+  const parked = b.with(() => S().parkedPins.default.tabs.find((p) => p.groupId));
+  assert.equal(parked.pinnedUrl, "https://docs.example/new");
+  assert.equal(parked.url, "https://docs.example/new", "reopening goes to the new home");
 });

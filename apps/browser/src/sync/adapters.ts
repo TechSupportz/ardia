@@ -921,11 +921,17 @@ const ROW = 1;
 const TILE = 0;
 const PIN_HOME = "pgh:";
 
+function parkedAt<T extends { url: string; pinnedUrl?: string | null; restoreFrom?: unknown }>(p: T, home: string): T {
+  if (p.url === home) return { ...p, pinnedUrl: home };
+  const { restoreFrom: _, ...rest } = p;
+  return { ...rest, url: home, pinnedUrl: home } as T;
+}
+
 export function pinnedGroupHomesAdapter(profileId: string): Adapter {
   const keyOf = (k: string) => k.slice(PIN_HOME.length);
   return {
     prefix: PIN_HOME,
-    extract: () => {
+    extract: (base) => {
       const s = store();
       const values = new Map<string, unknown>();
       const members = pinnedGroupMembers(s);
@@ -942,7 +948,7 @@ export function pinnedGroupHomesAdapter(profileId: string): Adapter {
         const url = p.pinnedUrl || p.url;
         if (p.groupId && url && !values.has(`${PIN_HOME}${p.id}`)) values.set(`${PIN_HOME}${p.id}`, url);
       }
-      return { values } satisfies Extraction;
+      return { values, ignore: (k) => base(`pin:t:${keyOf(k)}`) === undefined } satisfies Extraction;
     },
     apply: (visible, changed) => {
       const homes = new Map<string, string>();
@@ -963,7 +969,7 @@ export function pinnedGroupHomesAdapter(profileId: string): Adapter {
       }
       const park = s.parkedPins[profileId];
       const parked = park?.tabs.some((p) => p.groupId && homes.has(p.id) && p.pinnedUrl !== homes.get(p.id))
-        ? { ...park, tabs: park.tabs.map((p) => (p.groupId && homes.has(p.id) ? { ...p, pinnedUrl: homes.get(p.id)! } : p)) }
+        ? { ...park, tabs: park.tabs.map((p) => (p.groupId && homes.has(p.id) ? parkedAt(p, homes.get(p.id)!) : p)) }
         : undefined;
       if (!tabs && !parked) return true;
       fromSync(() => useBrowser.setState({ ...(tabs ? { tabs } : {}), ...(parked ? { parkedPins: { ...s.parkedPins, [profileId]: parked } } : {}) }));

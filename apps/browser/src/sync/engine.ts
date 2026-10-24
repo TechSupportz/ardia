@@ -288,7 +288,7 @@ function profileAdapters(profileId: string, retiring: boolean): Adapter[] {
   if (!passwords) passwordAdapters.set(profileId, (passwords = passwordsAdapter(profileId, () => forcePasswords)));
   return [
     ...(t.pinned ? [tileFoldersAdapter(profileId)] : []),
-    ...(t.pinned ? [pinnedRowsAdapter(profileId), pinnedOrderAdapter(profileId), inTodaysNames(pinnedAdapter(profileId)), inTodaysNames(pinnedGroupHomesAdapter(profileId))] : []),
+    ...(t.pinned ? [pinnedRowsAdapter(profileId), pinnedOrderAdapter(profileId), inTodaysNames(pinnedGroupHomesAdapter(profileId)), inTodaysNames(pinnedAdapter(profileId))] : []),
     ...(t.bookmarks && ownsData ? [inTodaysNames(bookmarksAdapter(profileId))] : []),
     ...(t.history && ownsData ? [inTodaysNames(historyAdapter(profileId))] : []),
     inTodaysNames(deviceTabsAdapter(profileId, id, deviceName, !t.tabs)),
