@@ -749,7 +749,8 @@ export function pinnedAdapter(profileId: string): Adapter {
       for (const [id, v] of pins) {
         const group = v.g && all.has(v.g) && groups[v.g] ? groups[v.g]! : null;
         const old = tabs[id];
-        const home = group ? (base(`${PIN_HOME}${keyOf(id)}`) as string | undefined) || old?.pinnedUrl || v.u : v.u;
+        const repinned = !!old && !contained(id);
+        const home = group ? (repinned ? undefined : (base(`${PIN_HOME}${keyOf(id)}`) as string | undefined) || old?.pinnedUrl) || v.u : v.u;
         if (old) {
           tabs[id] = {
             ...old,
@@ -931,7 +932,7 @@ export function pinnedGroupHomesAdapter(profileId: string): Adapter {
   const keyOf = (k: string) => k.slice(PIN_HOME.length);
   return {
     prefix: PIN_HOME,
-    extract: (base) => {
+    extract: (_base, _queued, _now, known, remote) => {
       const s = store();
       const values = new Map<string, unknown>();
       const members = pinnedGroupMembers(s);
@@ -948,7 +949,13 @@ export function pinnedGroupHomesAdapter(profileId: string): Adapter {
         const url = p.pinnedUrl || p.url;
         if (p.groupId && url && !values.has(`${PIN_HOME}${p.id}`)) values.set(`${PIN_HOME}${p.id}`, url);
       }
-      return { values, ignore: (k) => base(`pin:t:${keyOf(k)}`) === undefined } satisfies Extraction;
+      const pinGone = (k: string) => {
+        const pin = `pin:t:${keyOf(k)}`;
+        if (!known(pin)) return false;
+        const v = remote(pin) as PinValue | null | undefined;
+        return !v || !v.g;
+      };
+      return { values, ignore: (k) => !pinGone(k) } satisfies Extraction;
     },
     apply: (visible, changed) => {
       const homes = new Map<string, string>();

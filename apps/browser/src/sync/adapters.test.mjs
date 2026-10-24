@@ -1927,10 +1927,42 @@ test("a Mac that joins after the pinned group's tab wandered off takes its home,
   assert.equal(member(a).pinnedUrl, "https://docs.example/");
 });
 
-test("a home that arrives before its pin isn't deleted while the pin is on its way", () => {
-  const extraction = adapters.pinnedGroupHomesAdapter("default").extract((key) => (key === "pin:t:known" ? {} : undefined), () => false, 0);
-  assert.equal(extraction.ignore("pgh:waiting"), true, "kept while its pin hasn't arrived");
-  assert.equal(extraction.ignore("pgh:known"), false, "a pin this Mac knows and no longer holds in a group loses its home");
+test("a home is deleted only once its pin is gone or stands alone, never while the pin or its group is on the way", () => {
+  const records = { "pin:t:member": { g: "g1", u: "https://m.example/" }, "pin:t:tile": { g: null, u: "https://t.example/" }, "pin:t:deleted": null };
+  const extraction = adapters.pinnedGroupHomesAdapter("default").extract(() => undefined, () => false, 0, (k) => k in records, (k) => records[k]);
+  assert.equal(extraction.ignore("pgh:waiting"), true, "its pin hasn't arrived");
+  assert.equal(extraction.ignore("pgh:member"), true, "its pin is in a group this Mac may not have yet");
+  assert.equal(extraction.ignore("pgh:tile"), false, "its pin stands alone now");
+  assert.equal(extraction.ignore("pgh:deleted"), false, "its pin was deleted");
+});
+
+test("a pinned group whose own record is late keeps its tabs' homes", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  let w, g;
+  a.with(() => {
+    w = S().createWindow({ url: "https://home.example/" });
+    g = S().groupTabs([S().newTab(w, { url: "https://one.example/" })], { pinned: true, name: "Team" });
+  });
+  await a.sync();
+  const late = [...folder.files.keys()];
+  late.forEach((id) => folder.hidden.add(id));
+  let two;
+  a.with(() => {
+    two = S().newTab(w, { url: "https://two.example/" });
+    S().placeTabs([two], { pinned: false, groupId: g });
+    S().navigated(two, { url: "https://two.example/deep", title: "Deep" }, { isLoading: false, canGoBack: true });
+  });
+  await a.sync();
+  await b.sync();
+  await b.sync();
+  late.forEach((id) => folder.hidden.delete(id));
+  await syncAll([b, a, b, a]);
+  const home = (d) => d.with(() => Object.values(S().tabs).find((t) => !t.pinned && t.url.startsWith("https://two.example/") && model.inPinnedContainer(S(), t.id))?.pinnedUrl);
+  assert.equal(home(a), "https://two.example/");
+  assert.equal(home(b), "https://two.example/");
 });
 
 test("a new home reaches a Mac whose pinned group is parked, so reopening goes there", async () => {
@@ -1957,4 +1989,29 @@ test("a new home reaches a Mac whose pinned group is parked, so reopening goes t
   const parked = b.with(() => S().parkedPins.default.tabs.find((p) => p.groupId));
   assert.equal(parked.pinnedUrl, "https://docs.example/new");
   assert.equal(parked.url, "https://docs.example/new", "reopening goes to the new home");
+});
+
+test("a tab a Mac on 0.2.38 unpins and later pins again at another page takes that page as its home, not the old one", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const old = new OldMac("devOld", folder);
+  let x;
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    x = S().newTab(w, { url: "https://x.example/" });
+    S().groupTabs([x], { pinned: true, name: "Team" });
+  });
+  old.with(() => S().createWindow({ url: "https://old-home.example/" }));
+  await syncAll([a, old]);
+  const xIn = (d) => d.with(() => Object.values(S().tabs).find((t) => t.url.startsWith("https://x.example/")));
+  old.with(() => S().placeTabs([xIn(old).id], { pinned: false, groupId: null }));
+  await syncAll([old, a]);
+  assert.equal(xIn(a).pinnedUrl, null, "unpinned everywhere");
+  old.with(() => {
+    const id = xIn(old).id;
+    S().updateTab(id, { url: "https://x.example/new", title: "New", unloaded: undefined });
+    S().groupTabs([id], { pinned: true, name: "Again" });
+  });
+  await syncAll([old, a]);
+  assert.equal(xIn(a).pinnedUrl, "https://x.example/new");
 });
