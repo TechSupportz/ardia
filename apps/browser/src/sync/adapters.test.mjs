@@ -2015,3 +2015,66 @@ test("a tab a Mac on 0.2.38 unpins and later pins again at another page takes th
   await syncAll([old, a]);
   assert.equal(xIn(a).pinnedUrl, "https://x.example/new");
 });
+
+test("a tab pinned again on another Mac at a new home brings that home, even when that Mac moved on before syncing", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  let x;
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    x = S().newTab(w, { url: "https://x.example/" });
+    S().groupTabs([x], { pinned: true, name: "Team" });
+  });
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  await syncAll([a, b]);
+  const xIn = (d) => d.with(() => Object.values(S().tabs).find((t) => t.url.startsWith("https://x.example/")));
+  b.with(() => S().updateTab(xIn(b).id, { navigation: { url: xIn(b).url, seq: 1 }, unloaded: undefined }));
+  a.with(() => S().placeTabs([x], { pinned: false, groupId: null }));
+  await syncAll([a, b]);
+  assert.ok(xIn(b), "B keeps its loaded tab");
+  assert.equal(xIn(b).pinnedUrl, null);
+  a.with(() => {
+    S().navigated(x, { url: "https://x.example/new-home", title: "Home" }, { isLoading: false, canGoBack: true });
+    S().groupTabs([x], { pinned: true, name: "Again" });
+    S().navigated(x, { url: "https://x.example/deep", title: "Deep" }, { isLoading: false, canGoBack: true });
+  });
+  await syncAll([a, b]);
+  assert.equal(xIn(b).pinnedUrl, "https://x.example/new-home");
+  assert.equal(a.with(() => S().tabs[x].pinnedUrl), "https://x.example/new-home");
+});
+
+test("a pinned group's tab mirrored to a new window while its group was late keeps its home", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  let bw;
+  b.with(() => (bw = S().createWindow({ url: "https://b-home.example/" })));
+  let w, g;
+  a.with(() => {
+    w = S().createWindow({ url: "https://home.example/" });
+    g = S().groupTabs([S().newTab(w, { url: "https://one.example/" })], { pinned: true, name: "Team" });
+  });
+  await a.sync();
+  const late = [...folder.files.keys()];
+  late.forEach((id) => folder.hidden.add(id));
+  let two;
+  a.with(() => {
+    two = S().newTab(w, { url: "https://two.example/" });
+    S().placeTabs([two], { pinned: false, groupId: g });
+    S().navigated(two, { url: "https://two.example/deep", title: "Deep" }, { isLoading: false, canGoBack: true });
+  });
+  await a.sync();
+  await b.sync();
+  b.with(() => {
+    const other = S().createWindow({ url: "https://b-other.example/" });
+    S().closeWindow(bw);
+    S().setFocusedWindow(other);
+  });
+  await b.sync();
+  late.forEach((id) => folder.hidden.delete(id));
+  await syncAll([b, a, b, a]);
+  const home = (d) => d.with(() => Object.values(S().tabs).find((t) => t.url.startsWith("https://two.example/") && model.inPinnedContainer(S(), t.id))?.pinnedUrl);
+  assert.equal(home(b), "https://two.example/");
+  assert.equal(home(a), "https://two.example/");
+});

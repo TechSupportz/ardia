@@ -749,8 +749,10 @@ export function pinnedAdapter(profileId: string): Adapter {
       for (const [id, v] of pins) {
         const group = v.g && all.has(v.g) && groups[v.g] ? groups[v.g]! : null;
         const old = tabs[id];
-        const repinned = !!old && !contained(id);
-        const home = group ? (repinned ? undefined : (base(`${PIN_HOME}${keyOf(id)}`) as string | undefined) || old?.pinnedUrl) || v.u : v.u;
+        const key = old ? pinKeyOf(old) : keyOf(id);
+        const synced = base(`${PIN_HOME}${key}`) as string | undefined;
+        const trusted = !old || contained(id) || !!freshHomes.get(profileId)?.has(key);
+        const home = group ? (trusted ? synced || old?.pinnedUrl : undefined) || v.u : v.u;
         if (old) {
           tabs[id] = {
             ...old,
@@ -921,6 +923,7 @@ const PIN_ROW = "pinrow:";
 const ROW = 1;
 const TILE = 0;
 const PIN_HOME = "pgh:";
+const freshHomes = new Map<string, Set<string>>();
 
 function parkedAt<T extends { url: string; pinnedUrl?: string | null; restoreFrom?: unknown }>(p: T, home: string): T {
   if (p.url === home) return { ...p, pinnedUrl: home };
@@ -933,6 +936,7 @@ export function pinnedGroupHomesAdapter(profileId: string): Adapter {
   return {
     prefix: PIN_HOME,
     extract: (_base, _queued, _now, known, remote) => {
+      freshHomes.delete(profileId);
       const s = store();
       const values = new Map<string, unknown>();
       const members = pinnedGroupMembers(s);
@@ -963,6 +967,7 @@ export function pinnedGroupHomesAdapter(profileId: string): Adapter {
         const url = visible.get(k);
         if (typeof url === "string" && url) homes.set(keyOf(k), url);
       }
+      freshHomes.set(profileId, new Set(homes.keys()));
       if (!homes.size) return true;
       const s = store();
       const members = pinnedGroupMembers(s);
