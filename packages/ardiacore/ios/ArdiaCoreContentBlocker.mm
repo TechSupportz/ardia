@@ -327,7 +327,7 @@ NSString *const kPrelude =
      "    return local.set({ardiaReloadPending: true, ardiaPendingFilterImport: Object.assign({}, saved, {cleaning: true})})"
      "      .then(() => removeCustom ? send({what: 'applyFilterListSelection', toRemove: [url]}) : null)"
      "      .then(() => stock.length ? send({what: 'applyFilterListSelection', toSelect: selected(l).filter((id) => !stock.includes(id) && (!removeCustom || id !== url))}) : null)"
-     "      .then(() => send({what: 'reloadAllFilters'})).then(reloadLists).then(lists)"
+     "      .then(reloadLists).then(lists)"
      "      .then((after) => {"
      "        if (removeCustom && custom(after).includes(url)) throw new Error('The rejected list is still imported.');"
      "        if (stock.some((id) => selected(after).includes(id))) throw new Error('The rejected built-in list is still enabled.');"

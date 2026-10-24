@@ -66,7 +66,7 @@ const pendingRecords = (background) =>
 const importedIn = (background) =>
   background.eval(`µBlock.getAvailableLists().then((lists) => Object.keys(lists).filter((id) => lists[id].group === "custom").sort())`);
 try {
-  inst = await launch(resolve(app), { data: join(out, "data"), onboarded: true });
+  inst = await launch(resolve(app), { data: join(out, "data"), fresh: true, onboarded: true });
   await until("the content blocker", async () => (await call("getContentBlocker()"))?.stats?.ready);
   const [defaultTarget] = await backgroundPages();
   assert(defaultTarget, "missing default extension background page");
