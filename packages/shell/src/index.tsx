@@ -177,6 +177,7 @@ export type OpenWindowOptions = {
   behind?: string;
   chromeWindow?: string;
   pointer?: [number, number];
+  animated?: boolean;
 };
 
 export type MenuEntry = { id: string; title: string; current?: boolean };
