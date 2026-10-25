@@ -31,6 +31,7 @@ export type BrowserState = ProfilesSlice &
   SettingsSlice &
   UiSlice &
   PeekSlice & {
+    pinHomeVersions: Record<string, Record<string, { home?: string; removed?: string }>>;
     hydrate(data: HydrateData): void;
   };
 
@@ -50,6 +51,7 @@ export type HydrateData = Partial<
     | "parkedPins"
     | "pinChoices"
     | "pinSync"
+    | "pinHomeVersions"
     | "closedGroups"
     | "deletedGroups"
     | "cleanedTabs"
@@ -94,6 +96,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
   ...createSettingsSlice(...a),
   ...createUiSlice(...a),
   ...createPeekSlice(...a),
+  pinHomeVersions: {},
 
   hydrate(data) {
     const [set, get] = a;
@@ -165,6 +168,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
       parkedPins: Object.fromEntries(Object.entries(data.parkedPins ?? {}).filter(([p]) => profiles[p])),
       pinChoices: Object.fromEntries(Object.entries(data.pinChoices ?? {}).filter(([p]) => profiles[p])),
       pinSync: Object.fromEntries(Object.entries(data.pinSync ?? {}).filter(([p]) => profiles[p])),
+      pinHomeVersions: Object.fromEntries(Object.entries(data.pinHomeVersions ?? {}).filter(([p]) => profiles[p])),
       closedGroups: data.closedGroups ?? [],
       deletedGroups: keptDeletedGroups(data.deletedGroups ?? []),
       cleanedTabs: keptCleanedTabs((data.cleanedTabs ?? []).filter((c) => !isIncognitoProfile(c.tab.profileId))),

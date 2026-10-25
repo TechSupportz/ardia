@@ -2113,3 +2113,72 @@ test("a Mac that has to guess a re-pinned tab's home keeps the guess to itself u
   assert.equal(a.with(() => S().tabs[x].pinnedUrl), "https://x.example/new-home");
   assert.equal(xIn(b).pinnedUrl, "https://x.example/new-home");
 });
+
+test("a saved home delivered before a loaded regular tab is re-pinned survives intervening cycles", async () => {
+  const folder = new Folder();
+  const b = new Device("early-home-receiver", folder);
+  let x;
+  b.with(() => {
+    const w = S().createWindow({ url: "https://control.example/" });
+    x = S().newTab(w, { url: "https://docs.example/deep" });
+  });
+  const clock = new Clock("early-home-source");
+  const add = (seq, ops) => folder.files.set(`early-${seq}`, { scope: "p", payload: JSON.stringify({ v: 1, kind: "log", device: "early-home-source", seq, at: Date.now(), ops: ops.map(([k, v]) => ({ k, v, h: clock.tick() })) }) });
+  add(1, [[`pgh:${x}`, "https://docs.example/home"]]);
+  await b.sync();
+  await b.sync();
+  add(2, [
+    ["pin:g:early-group", { n: "Docs", i: null, c: null, pos: "a0" }],
+    [`pin:t:${x}`, { g: "early-group", u: "https://docs.example/deep", t: null, i: null, ti: "Deep", pos: "a0" }],
+  ]);
+  await b.sync();
+  assert.equal(b.with(() => S().tabs[x].pinnedUrl), "https://docs.example/home");
+  assert.equal(b.with(() => S().tabs[x].pinnedHomePending), undefined);
+  await b.sync();
+  assert.equal(b.with(() => S().tabs[x].pinnedUrl), "https://docs.example/home");
+});
+
+test("a legacy re-pin racing a local unpin cannot reuse the previous incarnation's saved home", async () => {
+  const folder = new Folder();
+  const a = new Device("stale-home-receiver", folder);
+  let x;
+  a.with(() => {
+    const w = S().createWindow({ url: "https://control.example/" });
+    x = S().newTab(w, { url: "https://docs.example/old-home" });
+    S().groupTabs([x], { pinned: true, name: "Old" });
+  });
+  await a.sync();
+  a.with(() => S().placeTabs([x], { pinned: false, groupId: null }));
+  const clock = new Clock("legacy-repinner", null, () => Date.now() + 10000);
+  folder.files.set("legacy-repin", { scope: "p", payload: JSON.stringify({
+    v: 1, kind: "log", device: "legacy-repinner", seq: 1, at: Date.now(), ops: [
+      { k: "pin:g:legacy-group", h: clock.tick(), v: { n: "Again", i: null, c: null, pos: "a0" } },
+      { k: `pin:t:${x}`, h: clock.tick(), v: { g: "legacy-group", u: "https://docs.example/new-home", t: null, i: null, ti: "New", pos: "a0" } },
+    ],
+  }) });
+  await a.sync();
+  assert.equal(a.with(() => S().tabs[x].pinnedUrl), "https://docs.example/new-home");
+  assert.equal(a.with(() => S().tabs[x].pinnedHomePending), true);
+});
+
+test("a new home newer than a pin tombstone waits for its later re-pin instead of being deleted", async () => {
+  const folder = new Folder();
+  const b = new Device("home-after-removal", folder);
+  let x;
+  b.with(() => {
+    const w = S().createWindow({ url: "https://control.example/" });
+    x = S().newTab(w, { url: "https://docs.example/deep" });
+  });
+  const clock = new Clock("removal-source");
+  const add = (seq, values) => folder.files.set(`removal-${seq}`, { scope: "p", payload: JSON.stringify({ v: 1, kind: "log", device: "removal-source", seq, at: Date.now(), ops: values.map(([k, v]) => ({ k, v, h: clock.tick() })) }) });
+  add(1, [[`pin:t:${x}`, null], [`pgh:${x}`, "https://docs.example/new-home"]]);
+  await b.sync();
+  await b.sync();
+  assert.equal(b.scopes.p.records[`pgh:${x}`].v, "https://docs.example/new-home");
+  add(2, [
+    ["pin:g:after-removal", { n: "Again", i: null, c: null, pos: "a0" }],
+    [`pin:t:${x}`, { g: "after-removal", u: "https://docs.example/deep", t: null, i: null, ti: "Deep", pos: "a0" }],
+  ]);
+  await b.sync();
+  assert.equal(b.with(() => S().tabs[x].pinnedUrl), "https://docs.example/new-home");
+});

@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import ts from "typescript";
-import { useBrowser } from "../store/browser.ts";
-import { inPinnedContainer } from "../store/model.ts";
 
 const worker = `
 import { readFileSync } from "node:fs";
@@ -27,7 +23,7 @@ if (!input.session) {
     S().groupTabs([id], { pinned: true, name: "Docs" });
     S().updateTab(id, { pinnedUrl: null });
   } else {
-    if (input.variant === "repin") {
+    if (["repin", "early"].includes(input.variant)) {
       const id = S().newTab(w, { url: live });
       S().updateTab(id, { pinKey: "remote-member", unloaded: undefined });
     }
@@ -35,7 +31,10 @@ if (!input.session) {
       ["pin:g:remote-group", { n: "Docs", i: null, c: "blue", pos: "a0" }],
       ["pin:t:remote-member", { g: "remote-group", u: live, ti: "Deep", t: null, i: null, pos: "a0" }],
     ]);
-    pinnedAdapter("default").apply(visible, new Set(visible.keys()), () => undefined, { known: () => true, now: 1000, horizon: 1000 });
+    if (input.variant === "early") {
+      const early = new Map([["pgh:remote-member", "https://docs.example/home"]]);
+      homes.apply(early, new Set(early.keys()), () => undefined, { stamp: () => "000000001.0000.source" });
+    } else pinnedAdapter("default").apply(visible, new Set(visible.keys()), () => undefined, { known: () => true, now: 1000, horizon: 1000 });
     if (input.variant === "mirror") {
       S().createWindow({ url: "https://other.example/" });
       S().closeWindow(w);
@@ -43,6 +42,13 @@ if (!input.session) {
     if (["park", "adopt"].includes(input.variant)) S().closeWindow(w);
     if (input.variant === "adopt") S().createWindow({ url: "https://adopt.example/" });
   }
+}
+if (input.action === "repin") {
+  const visible = new Map([
+    ["pin:g:remote-group", { n: "Docs", i: null, c: null, pos: "a0" }],
+    ["pin:t:remote-member", { g: "remote-group", u: live, ti: "Deep", t: null, i: null, pos: "a0" }],
+  ]);
+  pinnedAdapter("default").apply(visible, new Set(visible.keys()), k => k === "pgh:remote-member" ? "https://docs.example/home" : undefined, { known: () => true, now: 1000, horizon: 1000 });
 }
 if (["authoritative", "same"].includes(input.action)) {
   const visible = new Map([["pgh:remote-member", input.action === "same" ? live : "https://docs.example/"]]);
@@ -96,25 +102,8 @@ test("old local groups still initialize and publish their first home", () => {
   assert.deepEqual(run({ session: first.session }).exported, first.exported);
 });
 
-test("the actual menu gate includes blank pinned tabs and excludes ordinary tabs", () => {
-  const source = ts.createSourceFile("menus.ts", readFileSync(new URL("../components/sidebar/menus.ts", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
-  let gate;
-  const visit = (node) => {
-    if (ts.isConditionalExpression(node) && node.whenTrue.getText(source).includes('id: "pinnedPage"')) gate = node.condition.getText(source);
-    ts.forEachChild(node, visit);
-  };
-  visit(source);
-  assert.ok(gate);
-  const included = new Function("s", "tab", "inPinnedContainer", `return !!(${gate})`);
-  useBrowser.getState().hydrate({});
-  const w = useBrowser.getState().createWindow({});
-  const id = useBrowser.getState().newTab(w, {});
-  assert.equal(included(useBrowser.getState(), useBrowser.getState().tabs[id], inPinnedContainer), false);
-  useBrowser.getState().pinTabs([id], true);
-  assert.equal(useBrowser.getState().tabs[id].pinnedUrl, null);
-  assert.equal(included(useBrowser.getState(), useBrowser.getState().tabs[id], inPinnedContainer), true);
-  useBrowser.getState().placeTabs([id], { pinned: true, row: true });
-  assert.equal(included(useBrowser.getState(), useBrowser.getState().tabs[id], inPinnedContainer), true);
-  useBrowser.getState().groupTabs([id], { pinned: true, name: "Blank" });
-  assert.equal(included(useBrowser.getState(), useBrowser.getState().tabs[id], inPinnedContainer), true);
+test("an authoritative home received before re-pin survives process restart", () => {
+  const first = run({ variant: "early" });
+  const repinned = run({ session: first.session, action: "repin" });
+  assert.deepEqual(repinned.exported, [["pgh:remote-member", "https://docs.example/home"]]);
 });

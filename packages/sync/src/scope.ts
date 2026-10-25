@@ -77,6 +77,7 @@ export type Extraction = {
 
 export type ApplyRecords = {
   known(key: string): boolean;
+  stamp?(key: string): HLC | undefined;
   now: number;
   horizon: number;
   joined: boolean;
@@ -84,6 +85,7 @@ export type ApplyRecords = {
 
 export interface Adapter {
   prefix: string;
+  observe?(key: string, value: unknown, stamp: HLC): void;
   extract(
     base: (key: string) => unknown,
     queued: (key: string) => boolean,
@@ -145,19 +147,21 @@ function mergeRecord(state: ScopeState, key: string, record: SyncRecord, clock: 
   return true;
 }
 
-function ingestLog(state: ScopeState, file: LogFile, clock: Clock, changed: Set<string>) {
+function ingestLog(state: ScopeState, file: LogFile, clock: Clock, changed: Set<string>, observe?: (key: string, record: SyncRecord) => void) {
   see(state, file.device, file.at);
   if (isApplied(state, [file.device, file.seq])) return;
   for (const op of file.ops) {
+    observe?.(op.k, { h: op.h, v: op.v, o: [file.device, file.seq] });
     if (mergeRecord(state, op.k, { h: op.h, v: op.v, o: [file.device, file.seq] }, clock)) changed.add(op.k);
   }
   markApplied(state, file.device, file.seq);
 }
 
-export function ingestSnapshot(state: ScopeState, file: SnapshotFile, clock: Clock, changed: Set<string>) {
+export function ingestSnapshot(state: ScopeState, file: SnapshotFile, clock: Clock, changed: Set<string>, observe?: (key: string, record: SyncRecord) => void) {
   for (const [device, at] of Object.entries(file.seen)) see(state, device, at);
   see(state, file.device, file.at);
   for (const [key, record] of Object.entries(file.records)) {
+    observe?.(key, record);
     if (!(key in state.records) && isApplied(state, record.o)) continue;
     if (mergeRecord(state, key, record, clock)) changed.add(key);
   }
@@ -286,7 +290,7 @@ export function restoreJournal(state: ScopeState, batches: LogFile[], clock: Clo
 
 export const writtenSeq = (state: ScopeState) => state.seq - (state.journal?.length ?? 0);
 
-export async function pull(state: ScopeState, transport: Transport, scope: string, clock: Clock, now: number, options: ScopeOptions = {}) {
+export async function pull(state: ScopeState, transport: Transport, scope: string, clock: Clock, now: number, options: ScopeOptions = {}, observe?: (key: string, record: SyncRecord) => void) {
   const { damagedGiveUp } = { ...DEFAULTS, ...options };
   const listing = await transport.read(scope, Object.keys(state.files));
   const changed = new Set<string>();
@@ -311,10 +315,10 @@ export async function pull(state: ScopeState, transport: Transport, scope: strin
   parsed.sort((a, b) => (a.file.kind === b.file.kind ? 0 : a.file.kind === "snapshot" ? -1 : 1));
   for (const { id, file } of parsed) {
     if (file.kind === "snapshot") {
-      ingestSnapshot(state, file, clock, changed);
+      ingestSnapshot(state, file, clock, changed, observe);
       state.files[id] = { d: file.device, k: "snapshot", vv: file.vv, at: file.at };
     } else {
-      ingestLog(state, file, clock, changed);
+      ingestLog(state, file, clock, changed, observe);
       state.files[id] = { d: file.device, k: "log", s: file.seq, at: file.at };
     }
     delete state.damaged[id];
@@ -340,7 +344,7 @@ async function applyAdapter(state: ScopeState, adapter: Adapter, keys: Set<strin
   applyAs[adapter.prefix] ??= state.joined ? "joined" : "joining";
   let ok: boolean | void = false;
   try {
-    ok = await adapter.apply(view, mine, (key) => parseBase(state.base[key]), { known: (key) => key in state.records, now, horizon, joined: applyAs[adapter.prefix] === "joined" });
+    ok = await adapter.apply(view, mine, (key) => parseBase(state.base[key]), { known: (key) => key in state.records, stamp: (key) => state.records[key]?.h, now, horizon, joined: applyAs[adapter.prefix] === "joined" });
   } catch (error) {
     console.warn(`[sync] applying ${adapter.prefix} failed`, error);
   }
@@ -403,7 +407,12 @@ export async function syncScope(args: {
   const now = args.now ?? Date.now;
   let published = (await publish(state, adapters, clock, device, now())).size;
   await flush(state, transport, scope, device, now(), options);
-  const changed = await pull(state, transport, scope, clock, now(), options);
+  const beforePull = new Map(Object.entries(state.records).map(([key, record]) => [key, record.h]));
+  const changed = await pull(state, transport, scope, clock, now(), options, (key, record) => {
+    const before = beforePull.get(key);
+    if (before && before >= record.h) return;
+    for (const adapter of adapters) if (key.startsWith(adapter.prefix)) adapter.observe?.(key, record.v, record.h);
+  });
   const keys = new Set([...state.unapplied, ...changed]);
   const unapplied: string[] = [];
   for (const adapter of adapters) {

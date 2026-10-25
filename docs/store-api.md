@@ -25,6 +25,7 @@ modules before using them — this is a summary from the agent that built it.
   `switchProfile`, Reopen Closed Window, ⇧⌘T of a tile's page), and the park empties, so nothing comes back twice.
   Only the last window of a profile parks: while another window shows the profile, the pins are there.
   Sync publishes parked pins as the profile's pins and applies changes to them in place (sync/adapters `pinnedAdapter`).
+- `pinHomeVersions[profileId][pinKey]` keeps the latest received saved-home stamp and pin-removal stamp. It persists with the session so a home received before a re-pin survives restart, while a home older than an unpin cannot restore the previous pin's page. It is local metadata; synced group homes remain separate `pgh:` records.
 - Pins are per profile in every window (store/pinMirror.ts): each regular window showing a profile holds its own copy
   (a Tab, a TabGroup) of every pinned tile and pinned group, linked by `pinKey` (unset on the first copy, whose id is
   the key; `pinKeyOf`). A store listener (`mirrorPins`) carries a change of one window's pinned section to the others

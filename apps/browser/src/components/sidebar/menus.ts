@@ -78,7 +78,7 @@ export async function openTabMenu(windowId: string, tab: Tab) {
   if (s.selection[windowId]?.length) s.setSelection(windowId, []);
 
   const view = viewTabIds(s, windowId);
-  const list = view.filter((id) => !s.tabs[id]!.pinned);
+  const list = view.filter((id) => !inPinnedContainer(s, id));
   const index = list.indexOf(tab.id);
   const above = tab.pinned ? [] : list.slice(0, index);
   const below = tab.pinned ? [] : list.slice(index + 1);

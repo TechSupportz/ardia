@@ -483,7 +483,10 @@ function homeWindow(s: BrowserState, profileId: string): Window | undefined {
 export function pinnedAdapter(profileId: string): Adapter {
   return {
     prefix: "pin",
-    extract: (base, queued, now) => {
+    observe: (key, value, stamp) => {
+      if (key.startsWith("pin:t:") && !(value as PinValue | null)?.g) receivePinHomeRemoval(profileId, key.slice(6), stamp);
+    },
+    extract: (base, queued, now, _known, _remote, stamp) => {
       const s = store();
       type Pin = Pick<Tab, "id" | "url" | "title" | "customTitle" | "customIcon"> & Partial<Pick<Tab, "pinnedUrl" | "pinnedAsRow">>;
       type Node = { pin: Pin } | { group: string };
@@ -579,14 +582,17 @@ export function pinnedAdapter(profileId: string): Adapter {
         values,
         ignore: (k) => k.startsWith(PIN_ROW),
         republish: (k) => k.startsWith("pin:") && choiceOf(k) in chosen && !queued(k),
-        published: (keys) =>
-          settleChoices(profileId, Object.fromEntries([...keys].filter((k) => k.startsWith("pin:")).map(choiceOf).filter((c) => c in chosen).map((c) => [c, chosen[c]!]))),
+        published: (keys) => {
+          for (const k of keys) if (k.startsWith("pin:t:") && !(values.get(k) as PinValue | undefined)?.g) rememberPinHomeVersion(profileId, k.slice(6), "removed", stamp?.(k));
+          settleChoices(profileId, Object.fromEntries([...keys].filter((k) => k.startsWith("pin:")).map(choiceOf).filter((c) => c in chosen).map((c) => [c, chosen[c]!])));
+        },
       } satisfies Extraction;
     },
     apply: (visible, changed, base, records) => {
       if ([...changed].every((k) => k.startsWith(PIN_ROW))) return true;
       const pinItem = (k: string) => k.startsWith("pin:t:") || k.startsWith("pin:g:") || k.startsWith(`${PIN_NEST}g:`);
       if ([...changed].some((k) => pinItem(k) && !visible.has(k))) noteRemotePinDeletion(profileId);
+      for (const k of changed) if (k.startsWith("pin:t:") && !(visible.get(k) as PinValue | undefined)?.g) rememberPinHomeVersion(profileId, k.slice(6), "removed", records.stamp?.(k));
       const sync = store().pinSync[profileId] ?? {};
       let s = store();
       const home = homeWindow(s, profileId);
@@ -751,11 +757,14 @@ export function pinnedAdapter(profileId: string): Adapter {
         const old = tabs[id];
         const key = old ? pinKeyOf(old) : keyOf(id);
         const synced = base(`${PIN_HOME}${key}`) as string | undefined;
-        const trusted = !old || contained(id) || !!freshHomes.get(profileId)?.has(key);
-        const saved = trusted ? synced || old?.pinnedUrl : undefined;
+        const version = store().pinHomeVersions[profileId]?.[key];
+        const eligible = !version?.removed || (version.home && version.home > version.removed);
+        const trusted = eligible && (!old || contained(id) || !!freshHomes.get(profileId)?.has(key));
+        const currentHome = synced && eligible;
+        const saved = currentHome ? synced : trusted ? old?.pinnedUrl : undefined;
         const home = group ? saved || v.u : v.u;
         const pinnedHomePending = group
-          ? (!saved || (!synced && old?.pinnedHomePending) ? true as const : undefined)
+          ? (!saved || (!currentHome && old?.pinnedHomePending) ? true as const : undefined)
           : awaiting.has(id) ? true as const : undefined;
         if (old) {
           tabs[id] = {
@@ -932,6 +941,34 @@ const TILE = 0;
 const PIN_HOME = "pgh:";
 const freshHomes = new Map<string, Set<string>>();
 
+function rememberPinHomeVersion(profileId: string, key: string, field: "home" | "removed", stamp: string | undefined) {
+  if (!stamp) return;
+  const versions = store().pinHomeVersions;
+  const mine = versions[profileId] ?? {};
+  const entry = mine[key] ?? {};
+  if (entry[field] && entry[field] >= stamp) return;
+  fromSync(() => useBrowser.setState({ pinHomeVersions: { ...versions, [profileId]: { ...mine, [key]: { ...entry, [field]: stamp } } } }));
+}
+
+function receivePinHomeRemoval(profileId: string, key: string, stamp: string) {
+  rememberPinHomeVersion(profileId, key, "removed", stamp);
+  const s = store();
+  const version = s.pinHomeVersions[profileId]?.[key];
+  if (version?.home && version.home > stamp) return;
+  const members = pinnedGroupMembers(s);
+  let tabs: Record<string, Tab> | null = null;
+  for (const t of Object.values(s.tabs)) {
+    if (t.profileId !== profileId || pinKeyOf(t) !== key || t.pinned || !members.has(t.id) || t.pinnedHomePending) continue;
+    tabs ??= { ...s.tabs };
+    tabs[t.id] = { ...t, pinnedUrl: null, pinnedHomePending: true };
+  }
+  const park = s.parkedPins[profileId];
+  const parked = park?.tabs.some((p) => p.id === key && !!p.groupId && !p.pinnedHomePending)
+    ? { ...park, tabs: park.tabs.map((p) => p.id === key && p.groupId ? { ...p, pinnedUrl: null, pinnedHomePending: true as const } : p) }
+    : undefined;
+  if (tabs || parked) fromSync(() => useBrowser.setState({ ...(tabs ? { tabs } : {}), ...(parked ? { parkedPins: { ...s.parkedPins, [profileId]: parked } } : {}) }));
+}
+
 function parkedAt<T extends { url: string; pinnedUrl?: string | null; pinnedHomePending?: true; restoreFrom?: unknown }>(p: T, home: string): T {
   if (p.url === home) return { ...p, pinnedUrl: home, pinnedHomePending: undefined };
   const { restoreFrom: _, ...rest } = p;
@@ -942,7 +979,7 @@ export function pinnedGroupHomesAdapter(profileId: string): Adapter {
   const keyOf = (k: string) => k.slice(PIN_HOME.length);
   return {
     prefix: PIN_HOME,
-    extract: (_base, _queued, _now, known, remote) => {
+    extract: (_base, _queued, _now, known, remote, stamp) => {
       freshHomes.delete(profileId);
       const s = store();
       const values = new Map<string, unknown>();
@@ -960,19 +997,39 @@ export function pinnedGroupHomesAdapter(profileId: string): Adapter {
         }
       }
       for (const p of s.parkedPins[profileId]?.tabs ?? []) if (p.groupId) offer(p.id, p.pinnedUrl || p.url, p.pinnedHomePending);
+      for (const [key, url] of values) if (remote(key) === url) rememberPinHomeVersion(profileId, keyOf(key), "home", stamp?.(key));
       const pinGone = (k: string) => {
         const pin = `pin:t:${keyOf(k)}`;
         if (!known(pin)) return false;
         const v = remote(pin) as PinValue | null | undefined;
-        return !v || !v.g;
+        if (v?.g) return false;
+        const home = stamp?.(k) ?? s.pinHomeVersions[profileId]?.[keyOf(k)]?.home;
+        const removed = stamp?.(pin);
+        return !home || !removed || home <= removed;
       };
-      return { values, ignore: (k) => !pinGone(k) } satisfies Extraction;
+      return {
+        values,
+        ignore: (k) => !pinGone(k),
+        republish: (k) => {
+          const version = s.pinHomeVersions[profileId]?.[keyOf(k)];
+          return !!version?.removed && (!version.home || version.home <= version.removed);
+        },
+        published: (keys) => {
+          for (const k of keys) rememberPinHomeVersion(profileId, keyOf(k), "home", stamp?.(k));
+        },
+      } satisfies Extraction;
     },
-    apply: (visible, changed) => {
+    apply: (visible, changed, _base, records) => {
       const homes = new Map<string, string>();
       for (const k of changed) {
         const url = visible.get(k);
-        if (typeof url === "string" && url) homes.set(keyOf(k), url);
+        if (typeof url === "string" && url) {
+          const stamp = records?.stamp?.(k);
+          const removed = store().pinHomeVersions[profileId]?.[keyOf(k)]?.removed;
+          if (stamp && removed && stamp <= removed) continue;
+          homes.set(keyOf(k), url);
+          rememberPinHomeVersion(profileId, keyOf(k), "home", stamp);
+        }
       }
       freshHomes.set(profileId, new Set(homes.keys()));
       if (!homes.size) return true;
