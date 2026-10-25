@@ -155,8 +155,9 @@ export async function openTabMenu(windowId: string, tab: Tab) {
     memberPin
       ? { id: "unpinMember", title: "Unpin", symbol: "pin.slash" }
       : { id: "pin", title: togglePinTitle(tab), symbol: tab.pinned ? "pin.slash" : "pin" },
-    { id: "close", title: "Close Tab", symbol: "xmark", ...hint("w", "command") },
-    {
+    ...(!inPinnedContainer(s, tab.id) ? [{
+      id: "close", title: "Close Tab", symbol: "xmark", ...hint("w", "command"),
+    }, {
       id: "closeMore",
       title: "Close Tabs",
       enabled: others.length > 0,
@@ -165,7 +166,7 @@ export async function openTabMenu(windowId: string, tab: Tab) {
         { id: "closeAbove", title: across ? "Tabs to the Left" : "Tabs Above", enabled: above.length > 0 },
         { id: "closeBelow", title: across ? "Tabs to the Right" : "Tabs Below", enabled: below.length > 0 },
       ],
-    },
+    }] : []),
   ]);
   if (!choice) return;
   const t = { kind: "tab" as const, id: tab.id };
