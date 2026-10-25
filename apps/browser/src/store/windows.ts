@@ -3,6 +3,7 @@ import { closeWindow as closeNativeWindow } from "@ardia/shell";
 import type { BrowserState } from "./browser";
 import { rejoinGroups } from "./groups";
 import {
+  activeTabId,
   findLast,
   IDLE_LIVE,
   incognitoProfileId,
@@ -48,7 +49,7 @@ export type WindowsSlice = {
   parkedPins: Record<string, ParkedPins>;
 
   createWindow(options?: CreateWindowOptions): string;
-  closeWindow(id: string, options?: { replacedBy?: string }): void;
+  closeWindow(id: string): void;
   setWindowFrame(id: string, frame: Frame): void;
   toggleSidebar(windowId: string): void;
   switchProfile(windowId: string, profileId: string): void;
@@ -163,16 +164,16 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     return id;
   },
 
-  closeWindow(id, { replacedBy } = {}) {
+  closeWindow(id) {
     if (isSmallWindow(get().windows[id]) && closingSmallWindows.get(id) !== "finished") {
       if (closingSmallWindows.has(id)) return;
       closingSmallWindows.set(id, "animating");
       const finish = () => {
         closingSmallWindows.set(id, "finished");
-        get().closeWindow(id, { replacedBy });
+        get().closeWindow(id);
         closingSmallWindows.delete(id);
       };
-      void closeNativeWindow(id, replacedBy ?? null).then(finish, finish);
+      void closeNativeWindow(id).then(finish, finish);
       return;
     }
     const s = returnSharedPages(get(), id);
@@ -196,7 +197,7 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
       };
       closedWindows = [...closedWindows, entry].slice(-MAX_CLOSED_WINDOWS);
     }
-    const next = removeTabs(s, w.tabIds, small && !replacedBy);
+    const next = removeTabs(s, w.tabIds, small);
     set({
       ...next,
       windows: without(next.windows, [id]),
@@ -236,7 +237,14 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
   switchProfile(windowId, profileId) {
     let s = get();
     const w = s.windows[windowId];
-    if (!w || w.incognito || isSmallWindow(w) || !s.profiles[profileId] || w.profileId === profileId) return;
+    if (!w || w.incognito || !s.profiles[profileId] || w.profileId === profileId) return;
+    if (isSmallWindow(w)) {
+      const shown = activeTabId(s, windowId);
+      const url = (shown && s.tabs[shown]?.url) || undefined;
+      s = { ...s, windows: { ...s.windows, [windowId]: { ...w, profileId } } };
+      s = withNewTab(s, windowId, { profileId, url })[0];
+      return set(shown ? removeTabs(s, [shown], false) : s);
+    }
     s = adoptParkedPins(s, windowId, profileId);
     const remembered = w.activeTabIds[profileId];
     let target = remembered && s.tabs[remembered]?.windowId === windowId ? remembered : undefined;

@@ -53,14 +53,6 @@ enum ChromeWindows {
     host?.perform(NSSelectorFromString("revealLittleWindowEntrance:"), with: window)
   }
 
-  static func afterLittleEntrance(of window: NSWindow, run: @escaping () -> Void) {
-    guard let host else { return run() }
-    let selector = NSSelectorFromString("afterLittleWindowEntrance:run:")
-    guard (host as AnyObject).responds(to: selector) else { return run() }
-    let block: @convention(block) () -> Void = run
-    host.perform(selector, with: window, with: block)
-  }
-
   static func animateLittleClose(in window: NSWindow, completion: @escaping () -> Void) {
     guard let host else { return completion() }
     let selector = NSSelectorFromString("animateLittleWindowClose:completion:")

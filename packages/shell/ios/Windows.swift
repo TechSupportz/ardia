@@ -394,7 +394,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   private var closingWindows: [String: [() -> Void]] = [:]
 
-  func close(id: String, replacedBy: String? = nil, completion: @escaping () -> Void = {}) {
+  func close(id: String, completion: @escaping () -> Void = {}) {
     if closingWindows[id] != nil {
       closingWindows[id]!.append(completion)
       return
@@ -413,11 +413,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
       let callbacks = self.closingWindows.removeValue(forKey: id) ?? []
       callbacks.forEach { $0() }
     }
-    if let replacedBy, let replacement = windows[replacedBy] {
-      ChromeWindows.afterLittleEntrance(of: replacement, run: finish)
-    } else {
-      ChromeWindows.animateLittleClose(in: window, completion: finish)
-    }
+    ChromeWindows.animateLittleClose(in: window, completion: finish)
   }
 
   private func finishClose(id: String) {

@@ -322,8 +322,8 @@ public class ShellModule: Module {
         pointer: (options["pointer"] as? [Double]).flatMap { $0.count == 2 ? NSPoint(x: $0[0], y: $0[1]) : nil })
     }.runOnQueue(.main)
 
-    AsyncFunction("closeWindow") { (id: String, replacedBy: String?, promise: Promise) in
-      WindowManager.shared.close(id: id, replacedBy: replacedBy) { promise.resolve(nil) }
+    AsyncFunction("closeWindow") { (id: String, promise: Promise) in
+      WindowManager.shared.close(id: id) { promise.resolve(nil) }
     }.runOnQueue(.main)
     AsyncFunction("setTrafficLightsCenter") { (id: String, center: [Double]?) in
       WindowManager.shared.setTrafficLightsCenter(id: id, center: center.flatMap { $0.count == 2 ? NSPoint(x: $0[0], y: $0[1]) : nil })

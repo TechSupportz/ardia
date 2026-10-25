@@ -238,7 +238,7 @@ const Shell = requireNativeModule<{
   removeDocument(name: string): void;
   fetchBangList?(etag: string | null): Promise<BangListReply>;
   openWindow(id: string, options: OpenWindowOptions): Promise<void>;
-  closeWindow(id: string, replacedBy: string | null): Promise<void>;
+  closeWindow(id: string): Promise<void>;
   focusWindow(id: string): Promise<void>;
   setTrafficLightsCenter(id: string, center: [number, number] | null): Promise<void>;
   watchLeftEdge?(id: string, on: boolean, hold: number): Promise<void>;
@@ -310,7 +310,7 @@ export type WindowProfileProps = ViewProps & {
 };
 export const WindowProfile = requireNativeViewManager<WindowProfileProps>("ArdiaWindowProfile");
 
-export const closeWindow = (id: string, replacedBy: string | null = null) => Shell.closeWindow(id, replacedBy);
+export const closeWindow = (id: string) => Shell.closeWindow(id);
 export const focusWindow = (id: string) => Shell.focusWindow(id);
 export const setWindowTitle = (id: string, title: string) => Shell.setWindowTitle(id, title);
 export const setTrafficLightsCenter = (id: string, center: [number, number] | null) =>

@@ -148,3 +148,21 @@ test("the last active profile survives a quit and relaunch", () => {
   assert.equal(lastActiveProfile(S()), "default");
   stub.docs.clear();
 });
+
+test("switching Little Ardia's profile keeps its window and reopens the page there in the new profile", () => {
+  const { work } = twoProfilesTwoWindows();
+  const small = S().createWindow({ small: true, url: "https://link.example/", profileId: work });
+  const before = S().windows[small].tabIds[0];
+  const closed = S().closedTabs.length;
+  S().switchProfile(small, "default");
+  const w = S().windows[small];
+  assert.equal(w.profileId, "default");
+  assert.equal(w.tabIds.length, 1);
+  assert.notEqual(w.tabIds[0], before);
+  assert.equal(S().tabs[before], undefined);
+  assert.equal(S().tabs[w.tabIds[0]].profileId, "default");
+  assert.equal(S().tabs[w.tabIds[0]].url, "https://link.example/");
+  assert.equal(smallWindows().length, 1);
+  assert.equal(S().closedTabs.length, closed);
+  assert.equal(lastActiveProfile(S()), work);
+});

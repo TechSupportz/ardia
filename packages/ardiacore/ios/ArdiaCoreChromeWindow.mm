@@ -15,7 +15,6 @@
 @property(nonatomic) BOOL started;
 @property(nonatomic) BOOL settled;
 @property(nonatomic, strong) id closeObserver;
-@property(nonatomic, strong) NSMutableArray *whenSettled;
 @property(nonatomic, weak) NSView *frameView;
 @property(nonatomic) BOOL wasOpaque;
 @property(nonatomic) BOOL hadShadow;
@@ -60,8 +59,6 @@ void SettleLittleEntrance(NSWindow *window, ACLittleWindowEntrance *entrance) {
   if (!entrance || entrance.settled) return;
   entrance.settled = YES;
   entrance.started = YES;
-  NSArray *whenSettled = [entrance.whenSettled copy];
-  entrance.whenSettled = nil;
   NSView *frameView = entrance.frameView;
   [CATransaction begin];
   [CATransaction setDisableActions:YES];
@@ -74,7 +71,6 @@ void SettleLittleEntrance(NSWindow *window, ACLittleWindowEntrance *entrance) {
     window.hasShadow = entrance.hadShadow;
     if (entrance.hadShadow) [window invalidateShadow];
   }
-  for (void (^run)(void) in whenSettled) run();
 }
 
 BOOL (^gShouldClose)(NSWindow *);
@@ -1705,13 +1701,6 @@ NSView *ACWindowRootView(NSWindow *window) {
   [CATransaction setDisableActions:YES];
   frameView.alphaValue = 0;
   [CATransaction commit];
-}
-
-+ (void)afterLittleWindowEntrance:(NSWindow *)window run:(void (^)(void))run {
-  ACLittleWindowEntrance *entrance = objc_getAssociatedObject(window, kLittleWindowEntrance);
-  if (!entrance || entrance.settled) return run();
-  if (!entrance.whenSettled) entrance.whenSettled = [NSMutableArray array];
-  [entrance.whenSettled addObject:[run copy]];
 }
 
 + (void)stopScalingLittleWindow:(NSWindow *)window {

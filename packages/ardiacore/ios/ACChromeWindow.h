@@ -15,7 +15,6 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)takeDismissedAppWindow:(NSString *)appWindow;
 + (void)prepareLittleWindowEntrance:(NSWindow *)window;
 + (void)stopScalingLittleWindow:(NSWindow *)window;
-+ (void)afterLittleWindowEntrance:(NSWindow *)window run:(void (^)(void))run;
 + (void)revealLittleWindowEntrance:(NSWindow *)window;
 + (void)animateLittleWindowClose:(NSWindow *)window completion:(void (^)(void))completion;
 + (BOOL)prepareLittlePageReveal:(NSView *)page;
