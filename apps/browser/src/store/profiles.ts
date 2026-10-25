@@ -158,6 +158,7 @@ export const createProfilesSlice: StateCreator<BrowserState, [], [], ProfilesSli
           .map((c) => ({ ...c, tabs: c.tabs.filter((t) => t.profileId !== id) }))
           .filter((c) => c.tabs.length > 0),
         parkedPins: without(s.parkedPins, [id]),
+        pinHomeVersions: without(s.pinHomeVersions, [id]),
       });
       for (const w of Object.values(get().windows)) {
         if (!viewTabIds(get(), w.id).length) get().newTab(w.id);
