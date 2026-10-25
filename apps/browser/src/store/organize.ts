@@ -764,7 +764,7 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
     const t = get().tabs[tabId];
     const next = url ?? t?.url;
     if (!t || !next || !inPinnedContainer(get(), tabId)) return;
-    get().updateTab(tabId, { pinnedUrl: next });
+    get().updateTab(tabId, { pinnedUrl: next, pinnedHomePending: undefined });
     if (url && !samePage(t.url, url)) get().navigate(tabId, url);
   },
 

@@ -65,6 +65,7 @@ export type Tab = {
   customTitle: string | null;
   customIcon: string | null;
   pinnedUrl: string | null;
+  pinnedHomePending?: true;
   pinnedAsRow?: true;
   tileFolder?: TileFolder;
   navigation: { url: string; seq: number; userInitiated?: boolean } | null;
@@ -144,7 +145,7 @@ export type TabSnapshot = Pick<
   Tab,
   "url" | "title" | "favicon" | "pinned" | "muted" | "zoom" | "customTitle" | "customIcon" | "profileId"
 > &
-  Partial<Pick<Tab, "pinnedUrl" | "pinnedAsRow" | "tileFolder" | "engine">>;
+  Partial<Pick<Tab, "pinnedUrl" | "pinnedHomePending" | "pinnedAsRow" | "tileFolder" | "engine">>;
 
 export type ClosedTab = {
   kind: "tab";

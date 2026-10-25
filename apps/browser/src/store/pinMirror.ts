@@ -77,8 +77,8 @@ export function chainOf(x: Pick<Section, "groups">, key: string | null): string[
 }
 
 const tileSig = (t: Tab) =>
-  `${pinKeyOf(t)}\u0001${t.pinnedUrl ?? ""}\u0001${t.customTitle ?? ""}\u0001${t.customIcon ?? ""}\u0001${t.pinnedAsRow ? "r" : ""}\u0001${t.tileFolder?.id ?? ""}\u0001${t.tileFolder?.name ?? ""}\u0001${t.tileFolder?.renamedAt ?? ""}`;
-const memberSig = (t: Tab) => `${pinKeyOf(t)}\u0001${t.pinnedUrl ?? ""}\u0001${t.customTitle ?? ""}\u0001${t.customIcon ?? ""}`;
+  `${pinKeyOf(t)}\u0001${t.pinnedUrl ?? ""}\u0001${t.pinnedHomePending ? "pending" : ""}\u0001${t.customTitle ?? ""}\u0001${t.customIcon ?? ""}\u0001${t.pinnedAsRow ? "r" : ""}\u0001${t.tileFolder?.id ?? ""}\u0001${t.tileFolder?.name ?? ""}\u0001${t.tileFolder?.renamedAt ?? ""}`;
+const memberSig = (t: Tab) => `${pinKeyOf(t)}\u0001${t.pinnedUrl ?? ""}\u0001${t.pinnedHomePending ? "pending" : ""}\u0001${t.customTitle ?? ""}\u0001${t.customIcon ?? ""}`;
 export function signature(x: Section): string {
   const shown = new Set<string>();
   const lines: string[] = [];
@@ -111,7 +111,7 @@ export function hasDuplicates(x: Section): boolean {
   return !!x.duplicate || new Set(tabs).size < tabs.length;
 }
 
-const PIN_FIELDS = ["pinned", "pinnedUrl", "pinnedAsRow", "tileFolder", "customTitle", "customIcon", "profileId", "windowId", "pinKey"] as const;
+const PIN_FIELDS = ["pinned", "pinnedUrl", "pinnedHomePending", "pinnedAsRow", "tileFolder", "customTitle", "customIcon", "profileId", "windowId", "pinKey"] as const;
 function pinnedSplitsChanged(s: BrowserState, prev: BrowserState): boolean {
   if (s.splits === prev.splits) return false;
   const members = new Set(pinnedGroupsOf(s).flatMap((g) => g.tabIds));
@@ -200,6 +200,7 @@ export function copyOf(src: Tab, windowId: string, tile: boolean): Tab {
       favicon: atSource ? src.favicon : null,
       pinned: tile,
       pinnedUrl: src.pinnedUrl || (tile ? src.url : null) || null,
+      pinnedHomePending: src.pinnedHomePending,
       ...(tile && src.pinnedAsRow ? { pinnedAsRow: true as const } : {}),
       ...(tile && !src.pinnedAsRow && src.tileFolder ? { tileFolder: src.tileFolder } : {}),
       customTitle: src.customTitle,
@@ -246,6 +247,7 @@ function conform(s: BrowserState, windowId: string, profileId: string, spec: Sec
       customIcon: src.customIcon,
     };
     patch.pinnedUrl = src.pinnedUrl || (tile ? src.url : null) || null;
+    patch.pinnedHomePending = src.pinnedHomePending;
     if (tile && !hasPage(t) && !samePage(t.url, homeOf(src))) Object.assign(patch, { url: homeOf(src), title: src.title, favicon: src.favicon });
     tabs[t.id] = { ...t, ...patch };
     return t.id;

@@ -106,7 +106,7 @@ export async function openTabMenu(windowId: string, tab: Tab) {
     { id: "icon", title: "Change Icon…", symbol: "face.smiling" },
     ...(tab.customIcon ? [{ id: "resetIcon", title: "Reset Icon", symbol: "arrow.counterclockwise" }] : []),
     { id: "mute", title: tab.muted ? "Unmute Site" : "Mute Site", symbol: tab.muted ? "speaker.wave.2" : "speaker.slash", enabled: !!tab.url },
-    ...(tab.pinnedUrl
+    ...(inPinnedContainer(s, tab.id)
       ? [
           {
             id: "pinnedPage",

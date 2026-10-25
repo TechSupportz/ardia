@@ -20,9 +20,10 @@ export function settlePinHomes(s: HomeSource, prev: HomeSource): Pick<BrowserSta
     if (!t) continue;
     const housed = t.pinned || members.has(id);
     const home = housed ? t.pinnedUrl || t.url || null : null;
-    if (home === t.pinnedUrl) continue;
+    const pinnedHomePending = housed ? t.pinnedHomePending : undefined;
+    if (home === t.pinnedUrl && pinnedHomePending === t.pinnedHomePending) continue;
     tabs ??= { ...s.tabs };
-    tabs[id] = { ...t, pinnedUrl: home };
+    tabs[id] = { ...t, pinnedUrl: home, pinnedHomePending };
   }
   return tabs ? { tabs } : null;
 }

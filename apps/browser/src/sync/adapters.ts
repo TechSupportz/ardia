@@ -752,13 +752,17 @@ export function pinnedAdapter(profileId: string): Adapter {
         const key = old ? pinKeyOf(old) : keyOf(id);
         const synced = base(`${PIN_HOME}${key}`) as string | undefined;
         const trusted = !old || contained(id) || !!freshHomes.get(profileId)?.has(key);
-        const home = group ? (trusted ? synced || old?.pinnedUrl : undefined) || v.u : v.u;
-        if (group && !trusted && home) guessedHomes.set(profileId, new Map(guessedHomes.get(profileId)).set(key, home));
+        const saved = trusted ? synced || old?.pinnedUrl : undefined;
+        const home = group ? saved || v.u : v.u;
+        const pinnedHomePending = group
+          ? (!saved || (!synced && old?.pinnedHomePending) ? true as const : undefined)
+          : awaiting.has(id) ? true as const : undefined;
         if (old) {
           tabs[id] = {
             ...old,
             pinned: !group,
             pinnedUrl: home || null,
+            pinnedHomePending,
             ...(group ? { pinnedAsRow: undefined } : old.pinned ? {} : { pinnedAsRow: marked(pinKeyOf(old)) }),
             ...(group ? { tileFolder: undefined } : old.pinned || marked(pinKeyOf(old)) ? {} : folderMark(base, pinKeyOf(old))),
             customTitle: v.t,
@@ -776,6 +780,7 @@ export function pinnedAdapter(profileId: string): Adapter {
           id,
           ...pinKeyField(id),
           pinnedUrl: home || null,
+          pinnedHomePending,
           ...(!group && marked(keyOfLocal.get(id) ?? id) ? { pinnedAsRow: true as const } : {}),
           ...(!group && !marked(keyOfLocal.get(id) ?? id) ? folderMark(base, keyOfLocal.get(id) ?? id) : {}),
           navigation: null,
@@ -819,6 +824,7 @@ export function pinnedAdapter(profileId: string): Adapter {
               ...makeTab(windowId, profileId, t.url, { title: t.title, favicon: t.favicon, customTitle: t.customTitle, customIcon: t.customIcon }),
               pinKey: pinKeyOf(t),
               pinnedUrl: t.pinnedUrl,
+              pinnedHomePending: t.pinnedHomePending,
               navigation: null,
               unloaded: true,
             };
@@ -925,12 +931,11 @@ const ROW = 1;
 const TILE = 0;
 const PIN_HOME = "pgh:";
 const freshHomes = new Map<string, Set<string>>();
-const guessedHomes = new Map<string, Map<string, string>>();
 
-function parkedAt<T extends { url: string; pinnedUrl?: string | null; restoreFrom?: unknown }>(p: T, home: string): T {
-  if (p.url === home) return { ...p, pinnedUrl: home };
+function parkedAt<T extends { url: string; pinnedUrl?: string | null; pinnedHomePending?: true; restoreFrom?: unknown }>(p: T, home: string): T {
+  if (p.url === home) return { ...p, pinnedUrl: home, pinnedHomePending: undefined };
   const { restoreFrom: _, ...rest } = p;
-  return { ...rest, url: home, pinnedUrl: home } as T;
+  return { ...rest, url: home, pinnedUrl: home, pinnedHomePending: undefined } as T;
 }
 
 export function pinnedGroupHomesAdapter(profileId: string): Adapter {
@@ -942,20 +947,19 @@ export function pinnedGroupHomesAdapter(profileId: string): Adapter {
       const s = store();
       const values = new Map<string, unknown>();
       const members = pinnedGroupMembers(s);
-      const guessed = guessedHomes.get(profileId);
       const home = homeWindow(s, profileId);
       const windows = home ? [home, ...openWindows(s).filter((w) => w.id !== home.id)] : openWindows(s);
-      const offer = (key: string, url: string | null | undefined) => {
-        if (!url || values.has(`${PIN_HOME}${key}`) || guessed?.get(key) === url) return;
+      const offer = (key: string, url: string | null | undefined, pending: boolean | undefined) => {
+        if (!url || pending || values.has(`${PIN_HOME}${key}`)) return;
         values.set(`${PIN_HOME}${key}`, url);
       };
       for (const w of windows) {
         for (const id of w.tabIds) {
           const t = s.tabs[id];
-          if (t && t.profileId === profileId && members.has(id)) offer(pinKeyOf(t), t.pinnedUrl);
+          if (t && t.profileId === profileId && members.has(id)) offer(pinKeyOf(t), t.pinnedUrl, t.pinnedHomePending);
         }
       }
-      for (const p of s.parkedPins[profileId]?.tabs ?? []) if (p.groupId) offer(p.id, p.pinnedUrl || p.url);
+      for (const p of s.parkedPins[profileId]?.tabs ?? []) if (p.groupId) offer(p.id, p.pinnedUrl || p.url, p.pinnedHomePending);
       const pinGone = (k: string) => {
         const pin = `pin:t:${keyOf(k)}`;
         if (!known(pin)) return false;
@@ -971,8 +975,6 @@ export function pinnedGroupHomesAdapter(profileId: string): Adapter {
         if (typeof url === "string" && url) homes.set(keyOf(k), url);
       }
       freshHomes.set(profileId, new Set(homes.keys()));
-      const guessed = guessedHomes.get(profileId);
-      if (guessed && [...homes.keys()].some((k) => guessed.has(k))) guessedHomes.set(profileId, new Map([...guessed].filter(([k]) => !homes.has(k))));
       if (!homes.size) return true;
       const s = store();
       const members = pinnedGroupMembers(s);
@@ -980,12 +982,12 @@ export function pinnedGroupHomesAdapter(profileId: string): Adapter {
       for (const id of members) {
         const t = s.tabs[id];
         const home = t && t.profileId === profileId ? homes.get(pinKeyOf(t)) : undefined;
-        if (!t || !home || t.pinnedUrl === home) continue;
+        if (!t || !home || (t.pinnedUrl === home && !t.pinnedHomePending)) continue;
         tabs ??= { ...s.tabs };
-        tabs[id] = { ...t, pinnedUrl: home };
+        tabs[id] = { ...t, pinnedUrl: home, pinnedHomePending: undefined };
       }
       const park = s.parkedPins[profileId];
-      const parked = park?.tabs.some((p) => p.groupId && homes.has(p.id) && p.pinnedUrl !== homes.get(p.id))
+      const parked = park?.tabs.some((p) => p.groupId && homes.has(p.id) && (p.pinnedUrl !== homes.get(p.id) || p.pinnedHomePending))
         ? { ...park, tabs: park.tabs.map((p) => (p.groupId && homes.has(p.id) ? parkedAt(p, homes.get(p.id)!) : p)) }
         : undefined;
       if (!tabs && !parked) return true;
