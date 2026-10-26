@@ -3,6 +3,7 @@ import { everySlowly } from "../lib/slowTimers";
 import { useBrowser, type BrowserState } from "../store/browser";
 import { activeTabId, viewTabIds } from "../store/model";
 import { awayFromPin } from "../store/organize";
+import { liveTabPlace } from "./rows";
 import { SOURCES } from "./sources";
 import { applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
@@ -143,14 +144,21 @@ export function openLiveItem(windowId: string, folderId: string, item: LiveItem,
   const s = useBrowser.getState();
   markRead(folderId, [item.id]);
   const existing = viewTabIds(s, windowId).find((id) => s.tabs[id]?.liveItem?.itemId === item.id && s.tabs[id]?.liveItem?.folderId === folderId);
+  const home = inFolder(folderId, item.id) ? item.url : null;
   if (existing) {
-    if (s.tabs[existing]!.pinnedUrl !== item.url) s.updateTab(existing, { pinnedUrl: item.url });
+    if (s.tabs[existing]!.pinnedUrl !== home) s.updateTab(existing, { pinnedUrl: home });
     if (!options.background) s.activate(existing);
     return existing;
   }
   const id = s.newTab(windowId, { url: item.url, background: options.background });
-  useBrowser.getState().updateTab(id, { liveItem: { folderId, itemId: item.id }, pinnedUrl: item.url });
+  useBrowser.getState().updateTab(id, { liveItem: { folderId, itemId: item.id }, pinnedUrl: home });
   return id;
+}
+
+function inFolder(folderId: string, itemId: string) {
+  const l = live();
+  const ids = (list: { id: string }[] | undefined) => new Set((list ?? []).map((i) => i.id));
+  return liveTabPlace(itemId, ids(l.items[folderId]), ids(l.hidden[folderId])) !== "stray";
 }
 
 export function liveTabAway(tabId: string | null, s: BrowserState = useBrowser.getState()) {
@@ -181,9 +189,18 @@ export function startLiveEngine() {
     const folders = live().folders;
     for (const t of Object.values(s.tabs)) if (t.liveItem && !folders[t.liveItem.folderId]) s.updateTab(t.id, { liveItem: undefined });
   };
+  const strayHomes = () => {
+    const s = useBrowser.getState();
+    for (const t of Object.values(s.tabs)) {
+      if (!t.liveItem || t.pinned || !t.pinnedUrl || !live().items[t.liveItem.folderId]) continue;
+      if (!inFolder(t.liveItem.folderId, t.liveItem.itemId)) s.updateTab(t.id, { pinnedUrl: null });
+    }
+  };
   orphans();
+  strayHomes();
   useLive.subscribe((s, prev) => {
     if (s.folders !== prev.folders) orphans();
+    if (s.items !== prev.items || s.hidden !== prev.hidden) strayHomes();
   });
 
   useBrowser.subscribe((s, prev) => {
