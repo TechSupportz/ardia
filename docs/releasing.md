@@ -28,7 +28,7 @@ GitHub Actions. Each has these assets:
 Each version's notes are a file in the repo, `docs/release-notes/<version>.md` (how to write one:
 `docs/release-notes/README.md`). The GitHub release, the update dialog and the website's
 `https://ardia.dev/release-notes` all come from it. The first launch after an update opens
-`/release-notes#<version>` in a new tab (`apps/browser/src/lib/releaseNotesPage.ts`), so the site has to be
+`/release-notes#<version>` in a new tab (`apps/browser/src/state/releaseNotes/releaseNotesPage.ts`), so the site has to be
 deployed with the new entry by the time the update reaches people.
 
 ## Channels
@@ -200,7 +200,7 @@ pass on it.
 
 To check the after-update tab too: in that data dir, set `lastVersion` in `release-notes.json` to the
 previous version (`{"version":1,"lastVersion":"<previous>","pending":null}`) and relaunch with
-`ARDIA_RELEASE_NOTES=1` added (test instances skip the tab without it). `curl localhost:<port>/json` must
+`ARDIA_INSTANCE=releaseNotes` added (test instances skip the tab without it). `curl localhost:<port>/json` must
 list one `…/release-notes#<version>` page; a second launch opens none.
 
 ## CI releases
@@ -286,7 +286,7 @@ id, executable, Developer ID team, designated requirement, feed and key), so Spa
 macOS keeps its permissions, keychain items and passkeys.
 
 Nothing is migrated. A release build without `ARDIA_DATA_DIR` opens the CEF build's data where it is
-(`InstalledDataDirectory` in `packages/ardiacore/ios/ArdiaCoreHost.mm`): Chrome's user data dir
+(`InstalledDataDirectory` in `packages/ardiacore/ios/ArdiaProfiles.mm`): Chrome's user data dir
 `~/Library/Application Support/com.ardia.browser/Chromium` (profiles `Default` and `Profile <id>`), with the app's
 own documents (session, settings) in the folder above. Both engines are Chromium 154.0.8037.58, so every store keeps its
 format, and both read the same "Ardia Safe Storage" keychain item, which trusts the app by its designated
@@ -294,7 +294,9 @@ requirement. Only Developer ID builds use the login keychain; test instances (`A
 `ARDIA_BACKGROUND`) and ad hoc builds use Chrome's mock keychain. `carryover.sh` checks it: the previous build makes
 two profiles with tabs, persistent and session cookies, localStorage, saved passwords, bookmarks, history, an address,
 a site permission, a zoom level and an unpacked extension, and the new build, started without `ARDIA_DATA_DIR`,
-must find and read all of it. Both run as test copies (bundle id `com.ardia.browser.carryover`, signed ad hoc) in
+must find and read all of it. Saved passwords are shown only after macOS re-authentication, which a hidden instance
+grants only as the `ARDIA_TEST` `reauth=granted` fake, and that counts only in a test instance (a scratch
+`ARDIA_DATA_DIR`), so the new build reveals them in a second launch on the same folder named as `ARDIA_DATA_DIR`. Both run as test copies (bundle id `com.ardia.browser.carryover`, signed ad hoc) in
 a fake home (`HOME` and `CFFIXED_USER_HOME`), so the real app's data, defaults and keychain are never touched.
 `rollback.sh <previous app> <new app>` (not part of smoke.sh) checks going back on the same setup: the previous build,
 then the new one adding a second session, then the previous one again must show both sessions' data without crashing

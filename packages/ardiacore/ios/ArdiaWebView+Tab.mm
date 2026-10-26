@@ -41,7 +41,7 @@ const char kPageReportsKey = 0;
   [self pushSelectionPopover];
   [self bindRestoreKey];
   [self takePageReports];
-  if ([tab respondsToSelector:@selector(deliverHeldPageMessages)]) [tab deliverHeldPageMessages];
+  [tab deliverHeldPageMessages];
   [self userSightChanged];
   [self adoptIntoWindow];
   NSView *page = tab.view;
@@ -56,13 +56,14 @@ const char kPageReportsKey = 0;
   if (!shownEarly && (_creatingURL.length || tab.loading)) [self holdLittlePage];
   if (_muted) tab.muted = YES;
   if (_pageBackgroundColor) tab.pageBackgroundColor = _pageBackgroundColor;
-  if (_contentsBackgroundColor && [tab respondsToSelector:@selector(setContentsBackgroundColor:)]) tab.contentsBackgroundColor = _contentsBackgroundColor;
+  if (_contentsBackgroundColor) tab.contentsBackgroundColor = _contentsBackgroundColor;
   if (_pageColor) tab.pageColor = _pageColor;
   if (_pendingURL) {
     [self loadNow:_pendingURL userInitiated:_pendingUserInitiated];
     _pendingURL = nil;
   }
-  [self emit:@"ready" payload:@{@"browserId" : @(ardia_host::BrowserId(tab)), @"tabId" : @(tab.tabId)}];
+  [self emit:@"ready" payload:@{}];
+  ardia_host::ReleaseHeldEvents(tab);
   [self emitNavigation];
   if (_extensionHost.length && tab && tab.preferredSize.width > 0)
     [self tab:tab preferredSizeDidChange:tab.preferredSize];
@@ -183,23 +184,13 @@ const char kPageReportsKey = 0;
       if (view && view->_tab == removed && removed.closed) [view detach];
     });
   }
-  if (ardia_host::EngineHasTabModel()) return;
-  [self detach];
-  [self emit:@"windowClose" payload:@{}];
 }
 
 - (void)tabActivatedByChrome:(BOOL)chromes {
   if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ chrome-activated tab=%d byChrome=%d", _transferKey, _tab ? (int)_tab.tabId : -1, chromes);
   if (_standalone) return;
   [self requestFocusRestore];
-  [self emit:@"tabStrip"
-      payload:@{
-        @"index" : @(MAX(_tabIndex, 0)),
-        @"active" : @YES,
-        @"pinned" : @(_pinned),
-        @"activated" : @YES,
-        @"byApp" : @(!chromes),
-      }];
+  if (_navigationQueued) [self emitNavigation];
 }
 
 - (void)devToolsChanged:(NSView *)devToolsView {
@@ -250,7 +241,7 @@ const char kPageReportsKey = 0;
 
 - (void)tabDidChangeDiscarded:(ArdiaCoreTab *)tab {
   if (tab.discarded) [self emit:@"discarded" payload:@{@"url" : tab.url ?: @""}];
-  else [self emit:@"ready" payload:@{@"browserId" : @(ardia_host::BrowserId(tab)), @"tabId" : @(tab.tabId)}];
+  else [self emit:@"ready" payload:@{}];
 }
 
 - (void)tabBecameUnresponsive:(ArdiaCoreTab *)tab {

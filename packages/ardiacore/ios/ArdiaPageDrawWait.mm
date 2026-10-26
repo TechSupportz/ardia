@@ -1,4 +1,5 @@
 #import "ArdiaChromeWindowInternal.h"
+#import "ArdiaLaunchConfig.h"
 
 static const NSTimeInterval kPageDrawWait = 0.4;
 
@@ -10,13 +11,13 @@ static const NSTimeInterval kPageDrawWait = 0.4;
 
 + (void)tab:(ArdiaCoreTab *)tab draws:(NSInteger (^)(BOOL fullScreen, BOOL fills))test then:(void (^)(void))done {
   NSView *page = tab.view;
-  if (!page.window || page.isHiddenOrHasHiddenAncestor || ![tab respondsToSelector:@selector(evaluate:completion:)]) return done();
+  if (!page.window || page.isHiddenOrHasHiddenAncestor) return done();
   ArdiaPageDrawWait *wait = [ArdiaPageDrawWait new];
   wait->_tab = tab;
   wait->_test = test;
   wait->_done = done;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kPageDrawWait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-    if (wait->_done && getenv("ARDIA_TRACE_VISIBILITY")) NSLog(@"[ardiacore-vis] full screen: the page didn't draw in time");
+    if (wait->_done && [ArdiaLaunchConfig.shared traced:@"visibility"]) NSLog(@"[ardiacore-vis] full screen: the page didn't draw in time");
     [wait finish];
   });
   [wait ask];
@@ -57,7 +58,7 @@ static const NSTimeInterval kPageDrawWait = 0.4;
   const BOOL sized = NSEqualSizes(asked, now) && fabs([drawn[0] doubleValue] - pixels.width) <= 2 &&
                      fabs([drawn[1] doubleValue] - pixels.height) <= 2;
   const NSInteger drew = sized ? _test([drawn[2] boolValue], fills) : 0;
-  if (getenv("ARDIA_TRACE_VISIBILITY"))
+  if ([ArdiaLaunchConfig.shared traced:@"visibility"])
     NSLog(@"[ardiacore-vis] full screen: page drew %@, its view %@ (fills=%d) -> %ld", json, NSStringFromSize(pixels), fills, (long)drew);
   if (drew) return [self finish];
   [self ask];

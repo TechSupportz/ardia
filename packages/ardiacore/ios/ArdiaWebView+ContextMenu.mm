@@ -1,4 +1,5 @@
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaLaunchConfig.h"
 
 using namespace ardia_web_view;
 
@@ -30,12 +31,12 @@ NSArray *DescribeMenu(NSArray *items) {
   NSMutableArray *out = [NSMutableArray array];
   for (NSDictionary *item in items) {
     if (![item isKindOfClass:NSDictionary.class]) continue;
-    static const int kCefTypes[] = {1, 2, 3, 4, 0, 5, 5};
+    static const int kDescribedMenuTypes[] = {1, 2, 3, 4, 0, 5, 5};
     const int type = MenuItemType(item);
     NSMutableDictionary *described = [@{
       @"id" : Field<NSNumber>(item, @"id") ?: @0,
       @"label" : MenuTitle(Field<NSString>(item, @"label") ?: @""),
-      @"type" : @(type >= 0 && type < 7 ? kCefTypes[type] : 0),
+      @"type" : @(type >= 0 && type < 7 ? kDescribedMenuTypes[type] : 0),
       @"enabled" : @(Flag(item, @"enabled")),
       @"visible" : @(Field<NSNumber>(item, @"visible") ? Flag(item, @"visible") : YES),
     } mutableCopy];
@@ -108,8 +109,8 @@ NSDictionary *FindMenuItem(NSArray *items, NSString *label) {
 - (NSDictionary<NSString *, id> *)tab:(ArdiaCoreTab *)tab runContextMenu:(NSDictionary<NSString *, id> *)menu {
   NSArray *items = Field<NSArray>(menu, @"items") ?: @[];
   NoteEvent(ardia_host::BrowserId(tab), @"contextMenu", @{@"items" : items});
-  static const char *log = getenv("ARDIA_CONTEXT_MENU_LOG");
-  if (!log) {
+  ArdiaLaunchConfig *config = ArdiaLaunchConfig.shared;
+  if (![config testFlag:@"contextMenu"]) {
     if (ardia_host::Background()) {
       NSMutableArray<NSString *> *titles = [NSMutableArray array];
       for (NSDictionary *item in items)
@@ -118,7 +119,8 @@ NSDictionary *FindMenuItem(NSArray *items, NSString *label) {
     }
     return nil;
   }
-  NSString *path = @(log), *pickPath = [path stringByAppendingString:@".pick"];
+  NSString *path = [config.dataDirectory stringByAppendingPathComponent:@"context-menu.json"];
+  NSString *pickPath = [path stringByAppendingString:@".pick"];
   NSDictionary *dump = @{
     @"url" : Field<NSString>(menu, @"url") ?: tab.url ?: @"",
     @"link" : Field<NSString>(menu, @"link") ?: @"",

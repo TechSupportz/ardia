@@ -1,4 +1,5 @@
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaLaunchConfig.h"
 #import "ArdiaEarlyWindow.h"
 #import "ArdiaFieldTiming.h"
 #import "ArdiaTabParking.h"
@@ -24,7 +25,7 @@ const char kDropTypesKey = 0;
 namespace ardia_web_view {
 
 bool TraceVisibility() {
-  static const bool on = getenv("ARDIA_TRACE_VISIBILITY") != nullptr;
+  static const bool on = [ArdiaLaunchConfig.shared traced:@"visibility"];
   return on;
 }
 
@@ -246,7 +247,7 @@ void AcceptDrops(NSView *root, BOOL accept) {
 
 - (void)setContentsBackgroundColor:(NSColor *)color {
   _contentsBackgroundColor = color;
-  if ([_tab respondsToSelector:@selector(setContentsBackgroundColor:)]) _tab.contentsBackgroundColor = color;
+  _tab.contentsBackgroundColor = color;
 }
 
 - (void)setPageColor:(NSString *)color {
@@ -280,6 +281,11 @@ void ArdiaWebViewsSetFieldTiming(BOOL on) {
 
 + (NSArray<NSDictionary<NSString *, id> *> *)devEventsForBrowser:(int)browserId {
   return RecentEvents()[@(browserId)] ?: @[];
+}
+
++ (int)browserIdOfTab:(NSString *)tabId {
+  ArdiaCoreTab *tab = ardia_host::TabWithAppTabId(tabId);
+  return tab ? ardia_host::BrowserId(tab) : 0;
 }
 
 + (NSInteger)devWindowNumberForBrowser:(int)browserId {

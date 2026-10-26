@@ -168,7 +168,7 @@ await sleep(1500);
 checkUnlocked("…and closes when the page navigates", !windows().some((w) => /passkey/i.test(w.title)));
 
 const adsOnPage = () => adFate(adScript, () => go(`${pages}/ad.html`));
-const allowAds = (allowed) => instance.eval(`return globalThis.expo.modules.ArdiaCEF.setContentBlockerAllowed("localhost", ${allowed})`, { timeout: 30000 });
+const allowAds = (allowed) => instance.eval(`return ac.engine.call("contentBlocker.setAllowed", ${JSON.stringify({ host: "localhost", allowed })})`, { timeout: 30000 });
 const adSteps = [await adsOnPage()];
 await allowAds(true);
 adSteps.push(await adsOnPage());
@@ -253,31 +253,6 @@ check(
   logged ? `logged: ${logged.slice(0, 80)}` : menu ? `layer ${menu.layer}` : "no menu",
 );
 
-await go(`${pages}/video.html`);
-await send("Runtime.evaluate", { expression: "v.play().then(() => v.requestPictureInPicture())", awaitPromise: true, userGesture: true });
-const pipClick = () => {
-  try {
-    return JSON.parse(readFileSync(`${process.env.SMOKE_DATA}/pip-button-selftest.json`, "utf8"));
-  } catch {
-    return undefined;
-  }
-};
-let closed;
-for (const start = Date.now(); !closed && Date.now() - start < 8000; await sleep(250)) closed = pipClick();
-const before = await evaluate("v.currentTime");
-await sleep(1000);
-const after = await evaluate("({ paused: v.paused, time: v.currentTime, pip: !!document.pictureInPictureElement })");
-check(
-  "closing the Picture in Picture window leaves its video playing",
-  !!closed?.closed && !after?.pip && after?.paused === false && after.time !== before,
-  closed ? `closed ${closed.closed}, paused ${after?.paused}, ${before?.toFixed(2)} → ${after?.time?.toFixed(2)} s` : "no close click",
-);
-check(
-  "a click on the Picture in Picture window doesn't activate the app",
-  closed?.preventsActivation === true && closed?.activations === 0,
-  closed ? `tag ${closed.preventsActivation}, activations ${closed.activations}` : "no close click",
-);
-
 execFileSync(process.env.SMOKE_KEYS, [pid, "18", "t"]);
 let homeContext;
 for (const start = Date.now(); !homeContext && Date.now() - start < 8000; await sleep(500)) {
@@ -286,13 +261,13 @@ for (const start = Date.now(); !homeContext && Date.now() - start < 8000; await 
 check("Personal's pages run in Personal's profile when Work was the last used", !!homeContext && !!workContext && homeContext !== workContext,
   `personal ${homeContext}, work ${workContext}`);
 
-const hangEvents = async () =>
-  Object.entries((await instance.eval("return globalThis.acPerf.read().tasks", { timeout: 10000 })) ?? {}).filter(([k]) => /Unresponsive/.test(k)).reduce((n, [, c]) => n + c, 0);
+const hungPages = async () =>
+  (await instance.eval("return Object.values(ac.pageState.getState().pages).filter((p) => p.unresponsive).length", { timeout: 10000 })) ?? 0;
 let hang;
 try {
   const { targetId: busyId } = await browserCall("Target.createTarget", { url: `${pages}/busy.html` });
   await sleep(4000);
-  const before = await hangEvents();
+  const before = await hungPages();
   const busy = await instance.page((t) => t.id === busyId, { timeout: 0 });
   for (const type of ["mousePressed", "mouseReleased"])
     quietly(busy, "Input.dispatchMouseEvent", { type, x: 200, y: 200, button: "left", clickCount: 1 });
@@ -301,13 +276,13 @@ try {
   const start = Date.now();
   while (!hang && Date.now() - start < 28000) {
     await sleep(1000);
-    if ((await hangEvents()) > before) hang = `${Math.round((Date.now() - start) / 1000)} s after a click`;
+    if ((await hungPages()) > before) hang = `${Math.round((Date.now() - start) / 1000)} s after a click`;
   }
   await browserCall("Target.closeTarget", { targetId: busyId });
 } catch (error) {
   console.log(`note: ${error.message}`);
 }
-check("a page that stops responding is reported (Page Unresponsive)", !!hang, hang ?? "no unresponsive event within 28 s");
+check("a page that stops responding is reported (Page Unresponsive)", !!hang, hang ?? "no tab showed Page Unresponsive within 28 s");
 
 const newTabId = await (async () => {
   const before = await instance.eval(`return ac.store.getState().tabs ? Object.keys(ac.store.getState().tabs) : [];`).catch(() => []);

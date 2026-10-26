@@ -36,6 +36,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSArray<NSDictionary<NSString *, id> *> *)devEventsForBrowser:(int)browserId NS_SWIFT_NAME(devEvents(browserId:));
 + (NSInteger)devWindowNumberForBrowser:(int)browserId NS_SWIFT_NAME(devWindowNumber(browserId:));
 + (BOOL)devFocusPageOfBrowser:(int)browserId NS_SWIFT_NAME(devFocusPage(browserId:));
++ (int)browserIdOfTab:(nullable NSString *)tabId NS_SWIFT_NAME(browserId(ofTab:));
 
 @end
 
@@ -108,7 +109,6 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @interface ArdiaWebView (Navigation)
-- (void)loadURL:(NSString *)url;
 - (void)loadURL:(NSString *)url userInitiated:(BOOL)userInitiated NS_SWIFT_NAME(loadURL(_:userInitiated:));
 - (void)goBack;
 - (void)goForward;
@@ -148,7 +148,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)pageCookies:(NSArray<NSString *> *)urls
          completion:(void (^)(NSArray<NSDictionary<NSString *, id> *> *_Nullable cookies))completion
     NS_SWIFT_NAME(pageCookies(_:completion:));
-- (void)clearSiteData:(void (^)(NSDictionary<NSString *, id> *result))completion NS_SWIFT_NAME(clearSiteData(_:));
+- (void)clearSiteData:(void (^)(id _Nullable result, NSString *_Nullable error))reply NS_SWIFT_NAME(clearSiteData(_:));
 - (void)resolvePasswordPrompt:(NSString *)action username:(nullable NSString *)username password:(nullable NSString *)password
     NS_SWIFT_NAME(resolvePasswordPrompt(_:username:password:));
 - (void)resolveAutofillPrompt:(NSInteger)promptId action:(NSString *)action NS_SWIFT_NAME(resolveAutofillPrompt(_:action:));

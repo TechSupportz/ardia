@@ -19,7 +19,7 @@ NSString *SeenKey(NSString *profile, NSString *url) {
 }
 
 NSString *FaviconDirectory(NSString *profile) {
-  NSString *dir = profile.length ? [@"Profile " stringByAppendingString:profile] : @"Default";
+  NSString *dir = ardia_host::ProfileDirectoryName(profile);
   return [[ArdiaHost.dataDirectory stringByAppendingPathComponent:dir] stringByAppendingPathComponent:@"Ardia Favicons"];
 }
 
@@ -30,7 +30,7 @@ bool SafeName(NSString *name) {
 
 NSDictionary *Store(NSData *png, int width, int height, NSString *profile, NSString *name) {
   if (!png.length) return nil;
-  if (profile && !ardia_host::IsIncognito(profile) && SafeName(name)) {
+  if (profile && !ardia_host::IsPrivateProfile(profile) && SafeName(name)) {
     NSString *dir = FaviconDirectory(profile);
     [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
     NSString *path = [dir stringByAppendingPathComponent:[name stringByAppendingPathExtension:@"png"]];
@@ -75,10 +75,10 @@ NSData *PNG(NSImage *image, int pixels, int *width, int *height) {
 
 void Download(NSString *url, NSString *profileName, void (^done)(NSData *_Nullable data)) {
   void (^fetch)(ArdiaCoreProfile *) = ^(ArdiaCoreProfile *profile) {
-    if (!profile || profile.destroyed || ![profile respondsToSelector:@selector(fetchIcon:maxBytes:completion:)]) return done(nil);
+    if (!profile || profile.destroyed) return done(nil);
     [profile fetchIcon:url maxBytes:kMaxBytes completion:done];
   };
-  if (ardia_host::IsIncognito(profileName)) return fetch(ardia_host::LoadedProfile(profileName));
+  if (ardia_host::IsPrivateProfile(profileName)) return fetch(ardia_host::LoadedProfile(profileName));
   ardia_host::WithProfile(profileName, fetch);
 }
 

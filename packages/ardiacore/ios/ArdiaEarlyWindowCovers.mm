@@ -63,9 +63,11 @@ void DropCover(ArdiaEarlyShown *s) {
 
 }
 
+namespace {
+
 void TrimAfterHandoff() {
   static bool trimmed;
-  if (trimmed || EnvOff("ARDIA_MEMORY_TRIM") || EnvOff("ARDIA_MEMORY_TRIM_ENGINE")) return;
+  if (trimmed) return;
   trimmed = true;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kTrimAfterHandoffSeconds * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     [ArdiaEngineBridge call:@"ac_memory_trim" profile:@"" args:nil completion:^(NSString *) {}];
@@ -75,6 +77,8 @@ void TrimAfterHandoff() {
 void RemovePicture(NSView *picture) {
   picture.layer.contents = nil;
   [picture removeFromSuperview];
+}
+
 }
 
 namespace ardia_early_window {
@@ -92,6 +96,8 @@ void ClearRootFill(ArdiaEarlyShown *s, NSView *root) {
 }
 
 }
+
+namespace {
 
 void ReleasePictures(NSView *picture, NSView *backdrop, NSView *root, NSColor *fill) {
   [CATransaction begin];
@@ -131,6 +137,8 @@ void ReleaseOnceCovered(NSView *picture, NSView *backdrop, NSView *root, NSColor
       ReleasePictures(picture, backdrop, restoreFill ? shownRoot : nil, fill);
     });
   });
+}
+
 }
 
 namespace ardia_early_window {
@@ -197,8 +205,7 @@ NSView *Cover(NSView *host, NSDictionary *layout, NSRect *pageRect) {
 
 void Shield(ArdiaEarlyShown *s) {
   s.shielded = YES;
-  BOOL answered = NO;
-  s.inputBlock = TabCall(s.tab, @"suppressInput", &answered);
+  s.inputBlock = [s.tab suppressInput];
   ReleaseFocusFrom(s.tab.view);
   [CATransaction begin];
   [CATransaction setDisableActions:YES];

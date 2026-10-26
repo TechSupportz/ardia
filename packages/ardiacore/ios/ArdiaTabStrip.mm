@@ -7,7 +7,6 @@
 
 namespace {
 
-void (^gHandler)(NSDictionary *);
 int64_t gRev = 0;
 
 NSMapTable<ArdiaWindowController *, NSMutableDictionary<NSNumber *, NSString *> *> *KnownStrips() {
@@ -38,17 +37,12 @@ void Send(NSDictionary *tx) {
     if ([strip[@"closed"] boolValue]) [Sent() removeObjectForKey:strip[@"strip"]];
     else Sent()[strip[@"strip"]] = strip;
   }
-  gHandler(tx);
+  [ArdiaEvents emit:@"tabs.strips" data:tx];
 }
 
 NSMutableDictionary<NSNumber *, NSDictionary *> *Groups() {
   static NSMutableDictionary *groups = [NSMutableDictionary dictionary];
   return groups;
-}
-
-bool ReportsGroups() {
-  static bool reports = [ArdiaEngineBridge exports:@"ac_tabs_watch"];
-  return reports;
 }
 
 NSMapTable<ArdiaCoreTab *, NSNumber *> *Pinned() {
@@ -95,13 +89,8 @@ NSDictionary *Strip(ArdiaWindowController *controller, ArdiaCoreProfile *profile
       @"index" : @(i),
       @"active" : @(tab == active || (!active && i == 0)),
       @"pinned" : @([[Pinned() objectForKey:tab] boolValue]),
+      @"group" : Groups()[@([window chromeWindowIdForProfile:profile])][@"tabs"][@(tab.tabId)] ?: NSNull.null,
     }];
-    if (ReportsGroups()) {
-      NSMutableDictionary *last = [tabs.lastObject mutableCopy];
-      id group = Groups()[@([window chromeWindowIdForProfile:profile])][@"tabs"][@(tab.tabId)];
-      last[@"group"] = group ?: NSNull.null;
-      tabs[tabs.count - 1] = last;
-    }
   }
   const int strip = [window chromeWindowIdForProfile:profile];
   NSString *name = ardia_host::ProfileName(profile);
@@ -112,10 +101,8 @@ NSDictionary *Strip(ArdiaWindowController *controller, ArdiaCoreProfile *profile
     @"profile" : name,
     @"tabs" : tabs,
   } mutableCopy];
-  if (ReportsGroups()) {
-    state[@"groups"] = Groups()[@(strip)][@"groups"] ?: @[];
-    if ([Groups()[@(strip)][@"activePickedOnClose"] boolValue]) state[@"activePickedOnClose"] = @YES;
-  }
+  state[@"groups"] = Groups()[@(strip)][@"groups"] ?: @[];
+  if ([Groups()[@(strip)][@"activePickedOnClose"] boolValue]) state[@"activePickedOnClose"] = @YES;
   if (NSString *appWindow = AppWindowOf(controller)) state[@"appWindow"] = appWindow;
   return state;
 }
@@ -131,10 +118,9 @@ NSArray<ArdiaCoreProfile *> *ProfilesWithTabs(ArdiaWindowController *controller)
 
 @implementation ArdiaTabStrip
 
-+ (void)setHandler:(void (^)(NSDictionary<NSString *, id> *))handler {
-  gHandler = [handler copy];
++ (void)watchStrips {
   static bool watching = false;
-  if (watching || !ReportsGroups()) return;
+  if (watching) return;
   watching = true;
   [ArdiaEngineBridge observe:@"tabs.strip"
                       handler:^(NSDictionary *strip) {
@@ -165,7 +151,7 @@ NSArray<ArdiaCoreProfile *> *ProfilesWithTabs(ArdiaWindowController *controller)
 }
 
 + (void)changedInWindow:(ArdiaWindowController *)controller profile:(ArdiaCoreProfile *)profile cause:(id)cause {
-  if (!gHandler || !controller || !profile || controller.standalone) return;
+  if (![ArdiaEvents listens:@"tabs"] || !controller || !profile || controller.standalone) return;
   if (gCommand && controller == gCommandWindow && profile == gCommandProfile) return;
   cause = cause ?: (gCommand ?: (controller.hostChanges > 0 ? @(-1) : NSNull.null));
   NSDictionary *strip = Strip(controller, profile);
@@ -176,7 +162,7 @@ NSArray<ArdiaCoreProfile *> *ProfilesWithTabs(ArdiaWindowController *controller)
 + (void)windowClosed:(ArdiaWindowController *)controller {
   NSDictionary<NSNumber *, NSString *> *strips = [KnownStrips() objectForKey:controller];
   [KnownStrips() removeObjectForKey:controller];
-  if (!gHandler || !strips.count) return;
+  if (![ArdiaEvents listens:@"tabs"] || !strips.count) return;
   NSMutableArray *closed = [NSMutableArray array];
   const NSInteger window = controller.coreWindow.window.windowNumber;
   for (NSNumber *strip in strips)
@@ -246,8 +232,7 @@ NSArray<ArdiaCoreProfile *> *ProfilesWithTabs(ArdiaWindowController *controller)
       ArdiaCoreTab *tab = byKey[keys[i]];
       if (!tab) continue;
       [self setPinned:(NSInteger)i < pinned tab:tab];
-      if ([found.coreWindow respondsToSelector:@selector(placeTab:index:pinned:)])
-        [found.coreWindow placeTab:tab index:index pinned:(NSInteger)i < pinned];
+      [found.coreWindow placeTab:tab index:index pinned:(NSInteger)i < pinned];
       index++;
     }
   }
@@ -266,10 +251,10 @@ NSArray<ArdiaCoreProfile *> *ProfilesWithTabs(ArdiaWindowController *controller)
       gCommand = nil;
       ArdiaWindowController *controller = found;
       ArdiaCoreProfile *p = profile;
-      [ArdiaServices call:@"ac_tabs_group" profile:ardia_host::ProfileName(profile) args:args completion:^(NSDictionary *result) {
+      [ArdiaServices call:@"ac_tabs_group" profile:ardia_host::OriginalProfileNameOf(profile) args:args completion:^(NSDictionary *result) {
         NSMutableDictionary *tx = [@{@"rev" : @(++gRev), @"cmd" : @(commandId), @"strips" : @[ Strip(controller, p) ]} mutableCopy];
         if (result[@"error"]) tx[@"rejected"] = @YES;
-        if (gHandler) Send(tx);
+        if ([ArdiaEvents listens:@"tabs"]) Send(tx);
       }];
       return;
     }
@@ -277,7 +262,7 @@ NSArray<ArdiaCoreProfile *> *ProfilesWithTabs(ArdiaWindowController *controller)
   gCommand = nil;
   NSMutableDictionary *tx = [@{@"rev" : @(++gRev), @"cmd" : @(commandId), @"strips" : found ? @[ Strip(found, profile) ] : @[]} mutableCopy];
   if (rejected) tx[@"rejected"] = @YES;
-  if (gHandler) Send(tx);
+  if ([ArdiaEvents listens:@"tabs"]) Send(tx);
 }
 
 @end

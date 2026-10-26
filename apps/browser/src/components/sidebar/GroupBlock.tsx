@@ -1,32 +1,35 @@
-import { ContextMenuArea, FadeLabel, Surface, Symbol } from "@ardia/shell";
 import { createContext, memo, useContext, useEffect, useState } from "react";
-import { Animated, Easing, Pressable, Text, View } from "react-native";
-import { useShallow } from "zustand/react/shallow";
-import { hex, layout, useTheme } from "../../lib/theme";
-import { useBrowser } from "../../store/browser";
-import { usePageProfileId, useWindowId } from "../../store/hooks";
-import { groupLabel } from "../../store/organize";
+import { Animated, Pressable, Text, View } from "react-native";
+import { hex, layout, useTheme } from "../ui/theme";
+import { useGroup, usePageProfileId, useWindowId } from "../../state/browser/hooks";
+import { updateGroup } from "../../state/groups/actions";
+import { useGroupLabel } from "../../state/groups/hooks";
+import { useSelectionInGroup } from "../../state/pins/hooks";
+import { newCapture } from "../../state/sidebar/listCapture";
+import { useCapturedGroupEntries, useGroupFirstTabIcon, useKeptEntry } from "../../state/sidebar/hooks";
 import { MeetingTimeLabel, useMeetingCountdown } from "../live/MeetingCountdown";
-import { HoverSlot } from "../HoverSlot";
-import { IconButton } from "../primitives";
-import { commitRename, endRename, startRename } from "./actions";
-import { useDragFolded, useDragItem, useDropInto } from "./dnd";
-import { useShift, type EntryMotion } from "./entryMotion";
+import { HoverSlot } from "../ui/HoverSlot";
+import { Button, ContextMenuArea, FadeLabel, font, ink, radius, Surface, Symbol, weight } from "../ui";
+import { commitRename, endRename, startRename } from "../../state/sidebar/actions";
+import { useDragFolded, useDragItem, useDropInto } from "./DragProvider";
+import { useShift, type EntryMotion } from "./EntryMotion";
 import { Fold, useFold } from "./Fold";
-import { entryHeight, GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_INDENT, GROUP_PAD, GROUP_RADIUS, headGap, keptEntry } from "./geometry";
-import { groupEntries } from "./entries";
-import { dismissHover, useGroupHover, useRowHover } from "./hover";
-import { HOVER_CARD_FADE_CURVE, HOVER_CARD_FADE_MS } from "./hoverMotion";
-import { capture, GhostSlot, ListMotionContext, newCapture, useGroupMotion } from "./listMotion";
-import { pressGroupClose, useGroupCloseControl } from "./closeControl";
-import { openGroupMenu } from "./menus";
-import { registerRow, useSidebarUi } from "./state";
+import { GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_INDENT, GROUP_PAD, GROUP_RADIUS } from "./geometry";
+import { entryHeightNow, foldedGroupHeight, headGap } from "../../state/sidebar/geometry";
+import { dismissHover, useGroupHover, useRowHover } from "../../state/sidebar/hover";
+import { HOVER_CARD_FADE_MS } from "./hoverMotion";
+import { GhostSlot, ListMotionContext, useGroupMotion } from "./ListMotion";
+import { pressGroupClose, useGroupCloseControl } from "../../state/sidebar/closeControl";
+import { openGroupMenu } from "../../state/sidebar/menus";
+import { groupColorMenu } from "./groupColorMenu";
+import { registerRow, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
 import { RenameField, SplitRowItem, TabRowItem } from "./TabRow";
-import { groupSurface, useSidebarTokens, withAlpha } from "./tokens";
+import { groupSurface, TABULAR_NUMS, useSidebarTokens, withAlpha } from "./tokens";
+import { curve } from "../ui/motion";
 
 const PAD = GROUP_PAD;
-const BOX_FADE = Easing.bezier(...HOVER_CARD_FADE_CURVE);
+const BOX_FADE = curve.fade;
 const NO_GROUPS: ReadonlySet<string> = new Set();
 
 type ReportInnerHover = (groupId: string, hovered: boolean) => void;
@@ -75,28 +78,16 @@ export const GroupBlock = memo(function GroupBlock({
 }) {
   const windowId = useWindowId();
   const tokens = useSidebarTokens();
-  const stored = useBrowser((s) => !!s.groups[groupId]?.collapsed);
+  const stored = useGroup(groupId, (g) => !!g?.collapsed);
   const collapsed = useDragFolded(`g:${groupId}`) || stored;
-  const color = useBrowser((s) => s.groups[groupId]?.color ?? null);
-  const tabIds = useBrowser((s) => s.groups[groupId]?.tabIds.join(",") ?? "");
+  const color = useGroup(groupId, (g) => g?.color ?? null);
+  const tabIds = useGroup(groupId, (g) => g?.tabIds.join(",") ?? "");
   const [captured] = useState(newCapture);
-  const entries = useBrowser(
-    useShallow((s) => {
-      const list = groupEntries(s, groupId);
-      return capture(captured, s, list, list);
-    }),
-  );
-  const selectedInside = useBrowser((s) => {
-    const selection = s.selection[windowId];
-    return !!selection?.length && !!s.groups[groupId]?.tabIds.some((id) => selection.includes(id));
-  });
+  const entries = useCapturedGroupEntries(groupId, captured);
+  const selectedInside = useSelectionInGroup(windowId, groupId);
   const profileId = usePageProfileId();
-  const activeEntry = useBrowser((s) => keptEntry(s, windowId, profileId, entries));
-  const foldedHeight = () => {
-    const s = useBrowser.getState();
-    const kept = keptEntry(s, windowId, profileId, groupEntries(s, groupId));
-    return GROUP_BORDER * 2 + layout.rowHeight + (kept ? headGap(kept) + entryHeight(s, windowId, profileId, kept) + PAD : 0);
-  };
+  const activeEntry = useKeptEntry(windowId, profileId, entries);
+  const foldedHeight = () => foldedGroupHeight(windowId, profileId, groupId);
   const { wrapper, handle, headerRef } = useDragItem(`g:${groupId}`, { kind: "group", tabIds: tabIds.split(",").filter(Boolean), section, groupId, collapsed: stored, foldedHeight, parentGroup }, own?.clip);
   const tail = useDragItem(`tail:group:${groupId}`, { kind: "tail", tabIds: [], section, parentGroup: groupId });
 
@@ -137,7 +128,7 @@ export const GroupBlock = memo(function GroupBlock({
             )}
             keep={activeEntry}
             gap={layout.rowGap}
-            rowHeight={(key) => entryHeight(useBrowser.getState(), windowId, profileId, key)}
+            rowHeight={(key) => entryHeightNow(windowId, profileId, key)}
             padTop={headGap(collapsed && activeEntry ? activeEntry : entries[0])}
             padBottom={PAD}
             indent={GROUP_INDENT}
@@ -163,14 +154,9 @@ const Entry = memo(function Entry({ entry, section, groupId, motion }: { entry: 
 function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; windowId: string; collapsed: boolean; open: Animated.Value }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
-  const group = useBrowser((s) => s.groups[groupId]);
-  const label = useBrowser((s) => (s.groups[groupId] ? groupLabel(s, s.groups[groupId]!) : ""));
-  const firstTab = useBrowser(
-    useShallow((s) => {
-      const t = s.tabs[s.groups[groupId]?.tabIds[0] ?? ""];
-      return t && { url: t.url, favicon: t.favicon, customIcon: t.customIcon, profileId: t.profileId };
-    }),
-  );
+  const group = useGroup(groupId, (g) => g);
+  const label = useGroupLabel(groupId);
+  const firstTab = useGroupFirstTabIcon(groupId);
   const renaming = useSidebarUi((u) => u.renaming?.kind === "group" && u.renaming.id === groupId);
   const dropInto = useDropInto() === groupId;
   const { hovered, hoverProps } = useRowHover(windowId, collapsed && !renaming ? { kind: "group", id: groupId } : null);
@@ -184,18 +170,18 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
       <ContextMenuArea
         onContextMenu={() => {
           dismissHover();
-          void openGroupMenu(windowId, groupId);
+          void openGroupMenu(windowId, groupId, groupColorMenu);
         }}
       >
         <Pressable
           onPress={() => {
             dismissHover();
-            if (!renaming) useBrowser.getState().updateGroup(groupId, { collapsed: !collapsed });
+            if (!renaming) updateGroup(groupId, { collapsed: !collapsed });
           }}
         >
           {({ pressed }) => (
             <Surface
-              fill={hex(dropInto || pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : "rgba(0,0,0,0)")}
+              fill={hex(dropInto || pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : ink.clear)}
               cornerRadius={GROUP_HEADER_RADIUS}
               style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 6 }}
             >
@@ -209,16 +195,16 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
                   initial={group.name}
                   placeholder={label}
                   color={tokens.groupTitle}
-                  weight="500"
+                  weight={weight.medium}
                   onDone={(text) => (text === null ? endRename(target) : commitRename(target, text))}
                 />
               ) : (
                 <Animated.View style={{ flex: 1, height: 18, marginLeft: 5, flexDirection: "row", alignItems: "center", transform: [{ rotate: countdown.rotate }] }}>
                   <View style={{ flexShrink: 1, height: 18, paddingRight: 8, justifyContent: "center" }}>
-                    <Text numberOfLines={1} style={{ opacity: 0, fontSize: 13, fontWeight: "500", fontVariant: ["tabular-nums"] }}>
+                    <Text numberOfLines={1} style={{ opacity: 0, ...font.body, fontWeight: weight.medium, fontVariant: TABULAR_NUMS }}>
                       {label}
                     </Text>
-                    <FadeLabel text={label} fontSize={13} weight="medium" color={tokens.groupTitle} style={{ position: "absolute", left: 0, right: 0, top: 0, height: 18 }} />
+                    <FadeLabel text={label} fontSize={font.body.fontSize} weight="medium" color={tokens.groupTitle} style={{ position: "absolute", left: 0, right: 0, top: 0, height: 18 }} />
                   </View>
                   <Animated.View
                     style={{
@@ -237,7 +223,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
               <HoverSlot
                 hovered={hovered && !renaming}
                 width={22}
-                hover={closeControl && <IconButton icon={closeControl.icon} size={10} weight="semibold" box={22} radius={6} onPress={() => pressGroupClose(groupId)} tooltip={closeControl.tooltip} />}
+                hover={closeControl && <Button variant="icon" icon={closeControl.icon} size={10} weight="semibold" box={22} radius={radius.m} onPress={() => pressGroupClose(groupId)} tooltip={closeControl.tooltip} />}
               >
                 {countdown.label && !renaming ? <MeetingTimeLabel label={countdown.label} urgent={countdown.urgent} /> : null}
               </HoverSlot>

@@ -11,10 +11,8 @@ NS_ASSUME_NONNULL_BEGIN
                profile:(NSString *)profile
                   args:(NSMutableData *)args
             completion:(void (^)(NSString *json))completion NS_SWIFT_NAME(callWithSecret(_:profile:args:completion:));
-+ (void)setEventHandler:(nullable void (^)(NSString *topic, NSString *json))handler;
-+ (void)forwardTopics:(NSArray<NSString *> *)topics;
++ (void)forwardEngineEvents;
 + (void)observe:(NSString *)topic handler:(void (^)(NSDictionary<NSString *, id> *payload))handler;
-+ (BOOL)exports:(NSString *)name;
 @end
 
 NS_ASSUME_NONNULL_END
