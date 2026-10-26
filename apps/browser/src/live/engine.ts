@@ -1,7 +1,8 @@
 import { onWindowEvent } from "@ardia/shell";
 import { everySlowly } from "../lib/slowTimers";
-import { useBrowser } from "../store/browser";
+import { useBrowser, type BrowserState } from "../store/browser";
 import { activeTabId, viewTabIds } from "../store/model";
+import { awayFromPin } from "../store/organize";
 import { SOURCES } from "./sources";
 import { applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
@@ -143,12 +144,22 @@ export function openLiveItem(windowId: string, folderId: string, item: LiveItem,
   markRead(folderId, [item.id]);
   const existing = viewTabIds(s, windowId).find((id) => s.tabs[id]?.liveItem?.itemId === item.id && s.tabs[id]?.liveItem?.folderId === folderId);
   if (existing) {
+    if (s.tabs[existing]!.pinnedUrl !== item.url) s.updateTab(existing, { pinnedUrl: item.url });
     if (!options.background) s.activate(existing);
     return existing;
   }
   const id = s.newTab(windowId, { url: item.url, background: options.background });
-  useBrowser.getState().updateTab(id, { liveItem: { folderId, itemId: item.id } });
+  useBrowser.getState().updateTab(id, { liveItem: { folderId, itemId: item.id }, pinnedUrl: item.url });
   return id;
+}
+
+export function liveTabAway(tabId: string | null, s: BrowserState = useBrowser.getState()) {
+  const tab = tabId ? s.tabs[tabId] : undefined;
+  return !!tab && awayFromPin(tab);
+}
+
+export function returnLiveTab(tabId: string) {
+  useBrowser.getState().returnToPinnedUrl(tabId);
 }
 
 export function deleteLiveFolder(folderId: string) {

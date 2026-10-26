@@ -4,7 +4,7 @@ import { Animated, Easing, Pressable, Text, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { closeTab } from "../../lib/actions";
 import { hex, layout, useSelectedTabGlow, useTheme } from "../../lib/theme";
-import { COMPLETION_MS, errorText, manualRefresh, openLiveItem, statusText } from "../../live/engine";
+import { COMPLETION_MS, errorText, liveTabAway, manualRefresh, openLiveItem, returnLiveTab, statusText } from "../../live/engine";
 import { prBadge } from "../../live/github";
 import { folderRows, liveTabPlace, type FolderRow } from "../../live/rows";
 import { liveFolderIcon, SOURCES } from "../../live/sources";
@@ -303,12 +303,15 @@ function LiveItemRow({ folderId, item, windowId, inStack = false }: { folderId: 
   const indent = inStack ? 10 : 0;
   const theme = useTheme();
   const closeHint = useShortcutHint("closeTab");
+  const backToPinHint = useShortcutHint("returnToPinnedUrl");
+  const backToPin = useHover();
   const glow = useSelectedTabGlow();
   const colors = useLiveColors();
   const key = liveRowKey(folderId, item.id);
   const profileId = usePageProfileId();
   const tabId = useBrowser((s) => viewTabIds(s, windowId, profileId).find((id) => s.tabs[id]?.liveItem?.itemId === item.id && s.tabs[id]?.liveItem?.folderId === folderId) ?? null);
   const active = useBrowser((s) => !!tabId && activeTabId(s, windowId, profileId) === tabId);
+  const away = useBrowser((s) => liveTabAway(tabId, s));
   const unread = useLive((s) => !!s.unread[folderId]?.includes(item.id));
   const completion = useLive((s) => (s.completing[folderId]?.includes(item.id) ? (s.completed[folderId]?.find((c) => c.item.id === item.id)?.state ?? "merged") : null));
   const { hovered, hoverProps } = useRowHover(windowId, completion ? null : { kind: "live", id: key });
@@ -322,6 +325,8 @@ function LiveItemRow({ folderId, item, windowId, inStack = false }: { folderId: 
     ]).start();
   }, [completion]);
   const fill = active ? theme.tabSelected : hovered ? theme.tabHover : "rgba(0,0,0,0)";
+  const resettable = away && !completion;
+  const resetting = resettable && backToPin.hovered;
 
   return (
     <Animated.View style={completion ? { height: fold.interpolate({ inputRange: [0, 1], outputRange: [0, layout.rowHeight] }), opacity: fold, overflow: "hidden" } : null}>
@@ -351,9 +356,21 @@ function LiveItemRow({ folderId, item, windowId, inStack = false }: { folderId: 
                 style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9 + indent, paddingRight: 6 }}
               >
                 {unread ? <View style={{ position: "absolute", left: 2 + indent, width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.pip }} /> : null}
-                <ItemIcon item={item} completion={completion} colors={colors} />
+                {resettable ? (
+                  <View {...backToPin.hoverProps}>
+                    <Pressable onPress={() => tabId && returnLiveTab(tabId)} tooltip={withShortcut("Back to Pinned URL", backToPinHint)}>
+                      {resetting ? (
+                        <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.tabSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
+                      ) : (
+                        <ItemIcon item={item} completion={completion} colors={colors} />
+                      )}
+                    </Pressable>
+                  </View>
+                ) : (
+                  <ItemIcon item={item} completion={completion} colors={colors} />
+                )}
                 <FadeLabel
-                  text={item.title}
+                  text={resetting ? "Back to Pinned URL" : item.title}
                   fontSize={13}
                   weight={unread ? "medium" : undefined}
                   color={active ? theme.tabSelectedText : completion ? theme.textSecondary : theme.textTab}

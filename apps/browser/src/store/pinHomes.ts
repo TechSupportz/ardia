@@ -19,6 +19,7 @@ export function settlePinHomes(s: HomeSource, prev: HomeSource): Pick<BrowserSta
     const t = s.tabs[id];
     if (!t) continue;
     const housed = t.pinned || members.has(id);
+    if (!housed && t.liveItem) continue;
     const home = housed ? t.pinnedUrl || t.url || null : null;
     if (home === t.pinnedUrl) continue;
     tabs ??= { ...s.tabs };
