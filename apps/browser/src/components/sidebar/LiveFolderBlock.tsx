@@ -32,6 +32,7 @@ const PAD = GROUP_PAD;
 const EMPTY: LiveItem[] = [];
 const NONE: string[] = [];
 const NONE_COMPLETED: CompletedItem[] = [];
+const COMPLETED_ROW_HEIGHT = 28;
 
 const liveRowKey = (folderId: string, itemId: string) => `live|${folderId}|${itemId}`;
 
@@ -457,6 +458,7 @@ function CompletedFooter({ folderId, windowId }: { folderId: string; windowId: s
   const colors = useLiveColors();
   const shown = useCompletedShown(folderId);
   const [open, setOpen] = useState(false);
+  const fold = useFold(!open);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   if (!shown.length) return null;
   const enter = () => {
@@ -468,23 +470,31 @@ function CompletedFooter({ folderId, windowId }: { folderId: string; windowId: s
     hideTimer.current = setTimeout(() => setOpen(false), 250);
   };
   return (
-    <View onMouseEnter={enter} onMouseLeave={leave} style={{ gap: layout.rowGap }}>
+    <View onMouseEnter={enter} onMouseLeave={leave}>
       <View style={{ height: 24, flexDirection: "row", alignItems: "center", paddingLeft: 9, borderRadius: 8, backgroundColor: open ? theme.rowHover : undefined }}>
         <Symbol name="checkmark.circle" size={11} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
         <Text style={{ marginLeft: 5, fontSize: 12, color: theme.textSecondary }}>{shown.length} Completed</Text>
       </View>
-      {open
-        ? shown.slice(0, 8).map((c) => (
-            <Pressable key={c.item.id} onPress={() => openLiveItem(windowId, folderId, c.item)}>
+      <Fold
+        fold={fold}
+        collapsed={!open}
+        entries={shown.slice(0, 8).map((c) => ({
+          key: c.item.id,
+          node: (
+            <Pressable onPress={() => openLiveItem(windowId, folderId, c.item)}>
               {({ pressed }) => (
-                <View style={{ height: 28, borderRadius: 8, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 8, backgroundColor: pressed ? theme.tabPressed : undefined, opacity: 0.75 }}>
+                <View style={{ height: COMPLETED_ROW_HEIGHT, borderRadius: 8, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 8, backgroundColor: pressed ? theme.tabPressed : undefined, opacity: 0.75 }}>
                   <Symbol name={COMPLETION_GLYPH[c.state].symbol} size={12} color={colors[COMPLETION_GLYPH[c.state].color]} style={{ width: 16, height: 16 }} />
                   <FadeLabel text={c.item.title} fontSize={12.5} color={theme.textSecondary} style={{ flex: 1, height: 17, marginLeft: 5 }} />
                 </View>
               )}
             </Pressable>
-          ))
-        : null}
+          ),
+        }))}
+        gap={layout.rowGap}
+        rowHeight={COMPLETED_ROW_HEIGHT}
+        padTop={layout.rowGap}
+      />
     </View>
   );
 }
