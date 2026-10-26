@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
-import { acceptEngineOffer, stayOnPage, useEngineOffers, type EngineOffer } from "../../lib/engines";
-import { useTheme } from "../../lib/theme";
-import { PanelCloseButton, Popover, PromptButton } from "../layout/controls";
-import { Checkbox } from "../settings/controls";
+import { View } from "react-native";
+import { acceptEngineOffer, stayOnPage, useEngineOffers, type EngineOffer } from "../../state/engines/actions";
+import { Button, PanelCloseButton, Popover } from "../ui";
+import { CheckRow } from "./PromptParts";
 import { PromptBody } from "./Prompts";
 
 export function EngineOfferPrompt({ tabId, left, top }: { tabId: string; left: number; top: number }) {
@@ -13,7 +12,6 @@ export function EngineOfferPrompt({ tabId, left, top }: { tabId: string; left: n
 
 function OfferPopover({ tabId, offer, left, top }: { tabId: string; offer: EngineOffer; left: number; top: number }) {
   const [remember, setRemember] = useState(false);
-  const theme = useTheme();
   return (
     <Popover width={320} top={top} left={left} modal={false}>
       <View>
@@ -22,18 +20,11 @@ function OfferPopover({ tabId, offer, left, top }: { tabId: string; offer: Engin
           title={`Play ${offer.host} in WebKit?`}
           message="This site plays protected video, which Chromium in Ardia can't. The page reloads in WebKit, which keeps its own sign-ins."
           detail={
-            offer.canRemember ? (
-              <Pressable onPress={() => setRemember(!remember)} style={{ flexDirection: "row", alignItems: "flex-start", gap: 7 }}>
-                <View style={{ marginTop: 1 }}>
-                  <Checkbox value={remember} onChange={setRemember} />
-                </View>
-                <Text style={{ flex: 1, fontSize: 12, lineHeight: 16, color: theme.textPrimary }}>Don't ask again for this site</Text>
-              </Pressable>
-            ) : undefined
+            offer.canRemember ? <CheckRow value={remember} onChange={setRemember} label="Don't ask again for this site" /> : undefined
           }
         >
-          <PromptButton title="Stay on Page" onPress={() => stayOnPage(tabId, remember)} />
-          <PromptButton title="Open in WebKit" primary onPress={() => void acceptEngineOffer(tabId)} />
+          <Button variant="pill" title="Stay on Page" onPress={() => stayOnPage(tabId, remember)} />
+          <Button variant="pill" title="Open in WebKit" primary onPress={() => void acceptEngineOffer(tabId)} />
         </PromptBody>
         <PanelCloseButton onPress={() => stayOnPage(tabId)} />
       </View>

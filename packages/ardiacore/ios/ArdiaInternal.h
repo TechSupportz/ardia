@@ -1,6 +1,8 @@
 #import <AppKit/AppKit.h>
 
 #import "ArdiaCore.h"
+#import "ArdiaEvents.h"
+#import "ArdiaFavicons.h"
 #import "ArdiaHost.h"
 #import "ArdiaTabStrip.h"
 #import "ArdiaTabRegistry.h"
@@ -18,7 +20,10 @@ void WithProfile(NSString *name, void (^completion)(ArdiaCoreProfile *_Nullable 
 NSString *ProfileName(ArdiaCoreProfile *_Nullable profile);
 NSString *ProfileNameOfDirectory(NSString *directory);
 ArdiaCoreProfile *_Nullable PersonalIfLoaded(ArdiaCoreEngine *engine);
-bool IsIncognito(NSString *name);
+bool IsPrivateProfile(NSString *_Nullable name);
+bool IsPrivateSessionId(NSString *_Nullable name);
+NSString *ProfileDirectoryName(NSString *_Nullable name);
+NSString *ProfileNameOfDirectoryName(NSString *_Nullable directory);
 NSString *OriginalProfileName(NSString *_Nullable name);
 NSString *OriginalProfileNameOf(ArdiaCoreProfile *_Nullable profile);
 bool IsOffTheRecordOf(ArdiaCoreProfile *_Nullable profile, NSString *_Nullable name);
@@ -26,6 +31,12 @@ NSArray<NSString *> *LoadedProfileNames();
 
 int BrowserId(ArdiaCoreTab *tab);
 ArdiaCoreTab *_Nullable TabWithBrowserId(int browserId);
+NSString *_Nullable AppTabIdOf(ArdiaCoreTab *_Nullable tab);
+id AppTabIdValue(ArdiaCoreTab *_Nullable tab);
+ArdiaCoreTab *_Nullable TabWithAppTabId(NSString *_Nullable tabId);
+void HoldUntilHosted(ArdiaCoreTab *tab, NSString *event, NSDictionary *payload);
+void ReleaseHeldEvents(ArdiaCoreTab *tab);
+void DropHeldEvent(NSString *event, NSString *eventId);
 
 NSString *AppDisposition(NSString *chromeDisposition);
 
@@ -58,17 +69,10 @@ ArdiaCoreTab *_Nullable PasswordPromptTab(ArdiaWebView *view, ArdiaCoreTab *_Nul
 + (void)setPinned:(BOOL)pinned tab:(ArdiaCoreTab *)tab;
 @end
 
-@interface ArdiaCoreProfile (Pending)
-- (nullable NSString *)loadComponentExtension:(NSString *)path;
-- (void)releaseNavigationHoldReady;
-- (void)unloadComponentExtension:(NSString *)extensionId;
-@end
-
 namespace ardia_host {
 NSArray<ArdiaCoreProfile *> *LoadedProfiles();
 void LoadContentBlocker(NSString *profile);
 void PrepareContentBlocker();
-bool EngineHasTabModel();
 }
 
 @interface ArdiaFavicons (Tabs)

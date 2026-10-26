@@ -1,16 +1,24 @@
-import { cancelShortcutRecording, recordShortcut, Symbol, type MenuShortcut } from "@ardia/shell";
+import {
+  cancelShortcutRecording,
+  recordShortcut,
+  type MenuShortcut,
+  resolvedShortcuts,
+  useMenuBarRevision,
+} from "../../../state/commands/commandShortcuts";
+import { Symbol, Button, font, Group, PopUp, SearchField, Toggle, useHover } from "../../ui";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { useTheme } from "../../../lib/theme";
-import { useBrowser } from "../../../store/browser";
-import { openUrls } from "../../../lib/actions";
-import { IconButton, useHover } from "../../primitives";
+import { useTheme } from "../../ui/theme";
+import { useSettings } from "../../../state/browser/hooks";
+import { useProfileOrder } from "../../../state/profiles/hooks";
+import { setShortcutOverride, updateSettings } from "../../../state/settings/actions";
+import { openUrls } from "../../../state/browser/actions";
+import { Anchor, Row, SectionHeader } from "../Form";
 import { matchesQuery } from "../../pages/PageLayout";
-import { Anchor, Button, Group, PopUp, Row, SearchField, SectionHeader, Toggle, useFormColors } from "../controls";
-import { shortcutItems } from "../paneData";
-import { useResource } from "../resources";
-import { resolvedShortcuts, useMenuBarRevision } from "../../../lib/commandShortcuts";
-import { formatShortcut, sameShortcut, type Shortcut } from "../../../lib/shortcuts";
+import { shortcutItems } from "../../../state/settings/paneData";
+import { useResource } from "../../../state/settings/resources";
+import { formatShortcut, sameShortcut, type Shortcut } from "../../../state/commands/shortcuts";
+import { settingsType } from "../tokens";
 
 type Filter = "all" | "customized" | "conflicts";
 
@@ -18,10 +26,10 @@ const NO_SHORTCUT: Shortcut = { key: "", modifiers: [] };
 
 export function ShortcutsPane() {
   const theme = useTheme();
-  const overrides = useBrowser((s) => s.settings.shortcuts);
-  const profileOrder = useBrowser((s) => s.profileOrder);
+  const overrides = useSettings((s) => s.shortcuts);
+  const profileOrder = useProfileOrder();
   const menuBar = useMenuBarRevision();
-  const undoReopensClosedTab = useBrowser((s) => s.settings.undoReopensClosedTab);
+  const undoReopensClosedTab = useSettings((s) => s.undoReopensClosedTab);
   const [loaded] = useResource(shortcutItems);
   const items = loaded ?? null;
   const [query, setQuery] = useState("");
@@ -35,12 +43,7 @@ export function ShortcutsPane() {
   const effective = (item: MenuShortcut): Shortcut => resolved.bindings.get(item.id)?.[0] ?? NO_SHORTCUT;
   const conflictsOf = (item: MenuShortcut) => resolved.conflictsOf(item.id).flatMap((id) => byId.get(id) ?? []);
 
-  const setShortcut = (id: string, combo: Shortcut | null) => {
-    const next = { ...useBrowser.getState().settings.shortcuts };
-    if (combo) next[id] = [combo.key, ...combo.modifiers];
-    else delete next[id];
-    useBrowser.getState().updateSettings({ shortcuts: next });
-  };
+  const setShortcut = setShortcutOverride;
 
   const record = async (item: MenuShortcut) => {
     setRecording(item.id);
@@ -62,12 +65,12 @@ export function ShortcutsPane() {
 
   return (
     <View>
-      <Text style={{ marginTop: 20, fontSize: 12.5, lineHeight: 17, color: theme.textSecondary }}>
+      <Text style={{ marginTop: 20, ...settingsType.lead, lineHeight: 17, color: theme.textSecondary }}>
         Perform common actions in Ardia faster and from anywhere. Select an action to customize its keyboard shortcut.
       </Text>
       <Group style={{ marginTop: 14 }}>
         <Row anchor="shortcuts.undoReopensClosedTab">
-          <Toggle value={undoReopensClosedTab} onChange={(v) => useBrowser.getState().updateSettings({ undoReopensClosedTab: v })} />
+          <Toggle value={undoReopensClosedTab} onChange={(v) => updateSettings({ undoReopensClosedTab: v })} />
         </Row>
       </Group>
       <Anchor id="shortcuts.actions" radius={8} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 }}>
@@ -82,10 +85,10 @@ export function ShortcutsPane() {
           onChange={setFilter}
           minWidth={170}
         />
-        <Button title="Reset All Shortcuts" disabled={!customizedCount} onPress={() => useBrowser.getState().updateSettings({ shortcuts: {} })} />
+        <Button title="Reset All Shortcuts" disabled={!customizedCount} onPress={() => updateSettings({ shortcuts: {} })} />
       </Anchor>
       {items !== null && shown.length === 0 && (
-        <Text style={{ marginTop: 30, textAlign: "center", fontSize: 13, color: theme.textTertiary }}>No matching actions</Text>
+        <Text style={{ marginTop: 30, textAlign: "center", ...font.body, color: theme.textTertiary }}>No matching actions</Text>
       )}
       {menus.map((menu) => (
         <View key={menu}>
@@ -101,7 +104,7 @@ export function ShortcutsPane() {
                     title={item.title}
                     description={
                       others.length ? (
-                        <Text style={{ fontSize: 11.5, marginTop: 2, color: "#FF9F0A" }}>
+                        <Text style={{ ...font.footnote, marginTop: 2, color: theme.warning }}>
                           {`${others.length === 1 ? "This shortcut conflicts with another shortcut:" : "This shortcut conflicts with other shortcuts:"} ${others.map((o) => o.title).join(", ")}`}
                         </Text>
                       ) : item.path.length > 1 ? (
@@ -110,7 +113,7 @@ export function ShortcutsPane() {
                     }
                   >
                     {overrides[item.id] && (
-                      <IconButton icon="arrow.uturn.backward" size={11} box={24} radius={6} onPress={() => setShortcut(item.id, null)} tooltip="Reset to Default" />
+                      <Button variant="icon" icon="arrow.uturn.backward" size={11} box={24} radius={6} onPress={() => setShortcut(item.id, null)} tooltip="Reset to Default" />
                     )}
                     <ShortcutField
                       combo={effective(item)}
@@ -153,13 +156,12 @@ function ShortcutField({
   onClear: () => void;
 }) {
   const theme = useTheme();
-  const colors = useFormColors();
   const { hovered, hoverProps } = useHover();
   const text = recording ? "Type Shortcut" : formatShortcut(combo);
   if (!remappable) {
     return (
       <View style={{ minWidth: 110, alignItems: "flex-end" }} tooltip="(not remappable)">
-        <Text style={{ fontSize: 13, color: theme.textTertiary }}>{text || "—"}</Text>
+        <Text style={{ ...font.body, color: theme.textTertiary }}>{text || "—"}</Text>
       </View>
     );
   }
@@ -176,12 +178,12 @@ function ShortcutField({
             alignItems: "center",
             justifyContent: "center",
             gap: 4,
-            backgroundColor: recording ? `${colors.accent}33` : hovered ? colors.controlHover : colors.control,
+            backgroundColor: recording ? `${theme.formAccent}33` : hovered ? theme.controlHover : theme.control,
             borderWidth: recording ? 1.5 : 1,
-            borderColor: recording ? colors.accent : colors.controlBorder,
+            borderColor: recording ? theme.formAccent : theme.controlBorder,
           }}
         >
-          <Text style={{ flex: 1, textAlign: "center", fontSize: 13, color: recording ? colors.accent : text ? theme.textPrimary : theme.textTertiary }}>
+          <Text style={{ flex: 1, textAlign: "center", ...font.body, color: recording ? theme.formAccent : text ? theme.textPrimary : theme.textTertiary }}>
             {text || "None"}
           </Text>
           {hovered && !recording && combo.key ? (

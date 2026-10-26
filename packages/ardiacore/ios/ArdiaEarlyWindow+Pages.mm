@@ -33,8 +33,6 @@ NSMapTable<ArdiaCoreTab *, ArdiaEarlyVeil *> *Veils() {
   return veils;
 }
 
-}
-
 NSMapTable<ArdiaCoreTab *, ArdiaPageEmits *> *Emits() {
   static NSMapTable *emits = [NSMapTable weakToStrongObjectsMapTable];
   return emits;
@@ -61,6 +59,8 @@ void Archive(ArdiaPageEmits *emits, NSString *url) {
   }
 }
 
+}
+
 namespace ardia_early_window {
 
 NSHashTable<ArdiaCoreTab *> *Watched() {
@@ -69,6 +69,8 @@ NSHashTable<ArdiaCoreTab *> *Watched() {
 }
 
 }
+
+namespace {
 
 NSString *ParsedOrigin(NSString *url) {
   for (NSString *wrapper in @[ @"blob:", @"filesystem:" ])
@@ -90,7 +92,7 @@ NSString *ParsedOrigin(NSString *url) {
 
 NSString *EngineOrigin(NSString *url, BOOL *failed) {
   @try {
-    id origin = ((id (*)(id, SEL, NSString *))objc_msgSend)(NSClassFromString(@"ArdiaCoreTab"), NSSelectorFromString(@"originForURL:"), url);
+    id origin = [ArdiaCoreTab originForURL:url];
     if (!origin || [origin isKindOfClass:NSString.class]) return origin;
   } @catch (id) {
   }
@@ -102,7 +104,6 @@ BOOL EngineOriginsWork() {
   static BOOL works;
   static dispatch_once_t once;
   dispatch_once(&once, ^{
-    if (![NSClassFromString(@"ArdiaCoreTab") respondsToSelector:NSSelectorFromString(@"originForURL:")]) return;
     NSDictionary<NSString *, NSString *> *known = @{
       @"https://a.test/x" : @"https://a.test",
       @"http://EXAMPLE.com:80/" : @"http://example.com",
@@ -136,20 +137,16 @@ NSString *OriginOfURL(NSString *url) {
   return engine;
 }
 
+}
+
 namespace ardia_early_window {
 
-id TabCall(ArdiaCoreTab *tab, NSString *name, BOOL *answered) {
-  const SEL selector = NSSelectorFromString(name);
-  *answered = [tab respondsToSelector:selector];
-  return *answered ? ((id (*)(id, SEL))objc_msgSend)(tab, selector) : nil;
 }
 
-}
+namespace {
 
 NSString *LiveOrigin(ArdiaCoreTab *tab) {
-  BOOL answered = NO;
-  NSString *committed = TabCall(tab, @"committedOrigin", &answered);
-  return answered ? committed : OriginOfURL(tab.url);
+  return tab.committedOrigin;
 }
 
 BOOL Untitled(NSString *url) {
@@ -169,9 +166,6 @@ BOOL ShownMatches(NSString *shownURL, ArdiaCoreTab *tab) {
   return Untitled(shownURL) ? Untitled(url) : [shownURL isEqualToString:url];
 }
 
-bool PageVeilOff() {
-  static const bool off = [@(getenv("ARDIA_PAGE_VEIL") ?: "") isEqualToString:@"off"];
-  return off;
 }
 
 namespace ardia_early_window {
@@ -179,15 +173,14 @@ namespace ardia_early_window {
 BOOL ShowsLaunchOrigin(ArdiaCoreTab *tab, NSString *launchURL) {
   NSString *launch = OriginOfURL(launchURL);
   if (!launch) return NO;
-  BOOL engineKnows = NO;
-  NSString *committed = TabCall(tab, @"committedOrigin", &engineKnows);
+  NSString *committed = tab.committedOrigin;
   if (committed && ![committed isEqualToString:launch]) return NO;
   NSString *url = tab.url;
   if (!url.length) return YES;
-  if ([url isEqualToString:@"about:blank"]) return engineKnows;
+  if ([url isEqualToString:@"about:blank"]) return YES;
   NSString *live = OriginOfURL(url);
   if (![live isEqualToString:launch]) return NO;
-  if (![live hasPrefix:@"https:"] || ![tab respondsToSelector:@selector(securityInfo)]) return YES;
+  if (![live hasPrefix:@"https:"]) return YES;
   return ![tab.securityInfo[@"level"] isEqual:@"certificateError"];
 }
 
@@ -200,6 +193,8 @@ BOOL ReleaseFocusFrom(NSView *page) {
 }
 
 }
+
+namespace {
 
 void PlaceVeil(ArdiaCoreTab *tab, ArdiaEarlyVeil *veil) {
   NSView *page = tab.view, *host = page.superview;
@@ -250,11 +245,12 @@ void WatchVeil(ArdiaCoreTab *tab, ArdiaEarlyVeil *veil, double after) {
     if (still.armedGeneration != EmitsOf(page).generation || ![still.armedShown ?: @"" isEqualToString:still.lastShown ?: @""]) return;
     const double left = still.changedAt + kVeilFailSafeSeconds - CACurrentMediaTime();
     if (left > 0.05) return WatchVeil(page, still, left);
-    BOOL answered = NO;
     NSLog(@"[ardiacore] page veil lifted %.1f s after the bar showed a URL the engine never sent: shown %@, committed %@, visible %@", kVeilFailSafeSeconds,
-          still.lastShown ?: @"(none)", TabCall(page, @"committedOrigin", &answered) ?: @"(none)", page.url ?: @"(none)");
+          still.lastShown ?: @"(none)", page.committedOrigin ?: @"(none)", page.url ?: @"(none)");
     Unveil(page);
   });
+}
+
 }
 
 namespace ardia_early_window {
@@ -268,10 +264,7 @@ void CarryShield(ArdiaCoreTab *tab, id inputBlock, NSString *shownAtPlacement) {
     veil.changedAt = CACurrentMediaTime();
     [Veils() setObject:veil forKey:tab];
   }
-  if (!veil.inputBlock) {
-    BOOL answered = NO;
-    veil.inputBlock = inputBlock ?: TabCall(tab, @"suppressInput", &answered);
-  }
+  if (!veil.inputBlock) veil.inputBlock = inputBlock ?: [tab suppressInput];
   PlaceVeil(tab, veil);
   Reconcile(tab);
 }
@@ -350,7 +343,7 @@ void CarryShield(ArdiaCoreTab *tab, id inputBlock, NSString *shownAtPlacement) {
     veil.armedShown = nil;
     return Reconcile(tab);
   }
-  if (!url.length || PageVeilOff() || ShownMatches(url, tab)) return;
+  if (!url.length || ShownMatches(url, tab)) return;
   CarryShield(tab, nil, url);
 }
 

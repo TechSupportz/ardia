@@ -1,4 +1,5 @@
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaLaunchConfig.h"
 #import "ArdiaPictureInPicture.h"
 
 #import <objc/runtime.h>
@@ -96,7 +97,7 @@ void InstallControlPressMonitor() {
 }
 
 BOOL TracingPictureInPicture() {
-  static const BOOL tracing = getenv("ARDIA_TRACE_PIP") != nullptr;
+  static const BOOL tracing = [ArdiaLaunchConfig.shared traced:@"pip"];
   return tracing;
 }
 }
@@ -145,7 +146,7 @@ BOOL TracingPictureInPicture() {
 
 - (void)requestPictureInPictureForClickAt:(double)clickMs control:(NSInteger)target completion:(void (^)(BOOL))completion {
   if (_inPictureInPicture) return completion(YES);
-  if (![_tab respondsToSelector:@selector(enterPictureInPictureForClickAt:completion:)]) return completion(NO);
+  if (!_tab) return completion(NO);
   const NSTimeInterval clickAt = TakeControlPress(clickMs, target, self.window);
   [self traceManualPictureInPicture:[NSString stringWithFormat:@"%@ %@ (control %ld)", clickMs > 0 ? @"click" : @"key or accessibility press", clickAt > 0 ? @"verified" : @"not verified", (long)target]];
   if (clickAt <= 0) return completion(NO);
@@ -191,9 +192,7 @@ BOOL TracingPictureInPicture() {
 }
 
 - (void)exitPictureInPicture {
-  if ([_tab respondsToSelector:@selector(exitPictureInPicture)]) return [_tab exitPictureInPicture];
-  [self executeJavaScript:@"document.pictureInPictureElement && document.exitPictureInPicture();"
-                           "window.documentPictureInPicture && documentPictureInPicture.window && documentPictureInPicture.window.close()"];
+  [_tab exitPictureInPicture];
 }
 
 - (void)tab:(ArdiaCoreTab *)tab didChangePictureInPicture:(NSDictionary<NSString *, id> *)state {

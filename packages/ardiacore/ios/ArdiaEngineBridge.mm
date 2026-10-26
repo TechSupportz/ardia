@@ -9,9 +9,55 @@
 
 namespace {
 
-void (^gEventHandler)(NSString *, NSString *);
-NSSet<NSString *> *gForwardedTopics;
+bool gForwarding = false;
 NSMutableArray<NSArray *> *gPendingForwards;
+
+NSDictionary<NSString *, NSString *> *AppEventOfTopic() {
+  static NSDictionary *events = @{
+    @"history.changed" : @"history.changed",
+    @"bookmarks.changed" : @"bookmarks.changed",
+    @"extensions.action" : @"extensions.action",
+    @"extensions.sync" : @"extensions.sync",
+    @"cliControl" : @"engine.cliControl",
+  };
+  return events;
+}
+
+NSString *const kServesPrivateSession = @"session";
+NSString *const kNoEngineData = @"no engine data for a private profile";
+
+NSDictionary<NSString *, NSString *> *PrivateSessionPolicy() {
+  static NSDictionary *policy = @{
+    @"ac_site_settings_get" : kServesPrivateSession,
+    @"ac_site_settings_origins" : kServesPrivateSession,
+    @"ac_site_settings_set" : kServesPrivateSession,
+    @"ac_site_settings_reset" : kServesPrivateSession,
+    @"ac_site_data_clear" : kServesPrivateSession,
+    @"ac_zoom_list" : kServesPrivateSession,
+    @"ac_zoom_set" : kServesPrivateSession,
+    @"ac_history_query" : kNoEngineData,
+    @"ac_history_add" : kNoEngineData,
+    @"ac_history_import" : kNoEngineData,
+    @"ac_history_delete_urls" : kNoEngineData,
+    @"ac_history_watch" : kNoEngineData,
+    @"ac_favicons_get" : kNoEngineData,
+    @"ac_favicons_set" : kNoEngineData,
+    @"ac_bookmarks_tree" : kNoEngineData,
+    @"ac_bookmarks_apply" : kNoEngineData,
+    @"ac_bookmarks_watch" : kNoEngineData,
+    @"ac_tabs_last_tab_policy" : kNoEngineData,
+    @"ac_task_manager_open" : kNoEngineData,
+    @"ac_battery_saver" : kNoEngineData,
+    @"ac_memory_trim" : kNoEngineData,
+    @"ac_cli_control" : kNoEngineData,
+    @"ac_extensions_watch_actions" : kNoEngineData,
+    @"ac_extensions_sync_state" : kNoEngineData,
+    @"ac_extensions_sync_apply" : kNoEngineData,
+    @"ac_downloads_settings" : kNoEngineData,
+    @"ac_downloads_set_settings" : kNoEngineData,
+  };
+  return policy;
+}
 
 void *Symbol(const char *name) {
   return dlsym(RTLD_DEFAULT, name);
@@ -35,17 +81,8 @@ NSString *RealPath(NSString *path) {
 NSString *ProfileNamed(NSString *dir) {
   NSString *real = RealPath(dir);
   for (ArdiaCoreProfile *profile in ardia_host::LoadedProfiles())
-    if (!([profile respondsToSelector:@selector(offTheRecord)] && profile.offTheRecord) && [RealPath(profile.path) isEqualToString:real]) return ardia_host::ProfileName(profile);
-  NSString *name = real.lastPathComponent;
-  return [name hasPrefix:@"Profile "] ? [name substringFromIndex:8] : @"";
-}
-
-int EngineABI() {
-  static int abi = [] {
-    auto version = (ac_engine_abi_version_t)Symbol("ac_engine_abi_version");
-    return version ? version() : 0;
-  }();
-  return abi;
+    if (!profile.offTheRecord && [RealPath(profile.path) isEqualToString:real]) return ardia_host::ProfileName(profile);
+  return ardia_host::ProfileNameOfDirectoryName(real.lastPathComponent);
 }
 
 NSMutableDictionary<NSString *, NSMutableArray *> *Observers() {
@@ -53,27 +90,18 @@ NSMutableDictionary<NSString *, NSMutableArray *> *Observers() {
   return observers;
 }
 
-bool ForwardsEveryEngineEvent() {
-  static const bool every = [] {
-    const char *value = getenv("ARDIA_ENGINE_EVENT_FORWARD");
-    return value && !strcmp(value, "all");
-  }();
-  return every;
-}
-
 bool Forwarded(NSString *topic) {
-  return gEventHandler && (ForwardsEveryEngineEvent() || !gForwardedTopics || [gForwardedTopics containsObject:topic]);
+  return gForwarding && AppEventOfTopic()[topic] != nil;
 }
 
 void FlushForwards() {
   NSArray<NSArray *> *events = gPendingForwards;
   gPendingForwards = nil;
   for (NSArray *event in events)
-    if (gEventHandler) gEventHandler(event[0], JSON(event[1]));
+    [ArdiaEvents emit:AppEventOfTopic()[event[0]] data:event[1]];
 }
 
 void Forward(NSString *topic, NSDictionary *payload) {
-  if (ForwardsEveryEngineEvent()) return gEventHandler(topic, JSON(payload));
   NSArray *event = @[ topic, [payload copy] ];
   if (gPendingForwards) {
     if (![gPendingForwards.lastObject isEqualToArray:event]) [gPendingForwards addObject:event];
@@ -114,24 +142,14 @@ void InstallSink() {
 + (void)call:(NSString *)name profile:(NSString *)profile args:(NSString *)args completion:(void (^)(NSString *))completion {
   auto call = (ac_engine_call_t)Symbol(name.UTF8String);
   if (!call) return completion(JSON(@{@"error" : [NSString stringWithFormat:@"the engine has no %@", name]}));
-  if (ardia_host::IsIncognito(profile)) {
-    static NSSet<NSString *> *session = [NSSet setWithArray:@[
-      @"ac_site_settings_get", @"ac_site_settings_origins", @"ac_site_settings_set", @"ac_site_settings_reset",
-      @"ac_site_data_clear", @"ac_zoom_list", @"ac_zoom_set"
-    ]];
-    static NSSet<NSString *> *changes = [NSSet setWithArray:@[
-      @"ac_site_settings_set", @"ac_site_settings_reset", @"ac_site_data_clear", @"ac_zoom_set", @"ac_external_apps_remove",
-      @"ac_browsing_data_clear"
-    ]];
-    if ([session containsObject:name] && EngineABI() >= 2) {
-      NSData *bytes = [(args.length ? args : @"{}") dataUsingEncoding:NSUTF8StringEncoding];
-      NSMutableDictionary *parsed = [[NSJSONSerialization JSONObjectWithData:bytes options:0 error:nil] mutableCopy];
-      if (![parsed isKindOfClass:NSMutableDictionary.class]) return completion(JSON(@{@"error" : @"bad arguments"}));
-      parsed[@"offTheRecord"] = @YES;
-      args = JSON(parsed);
-    } else if ([changes containsObject:name]) {
-      return completion(JSON(@{@"error" : @"private profile"}));
-    }
+  if (ardia_host::IsPrivateProfile(profile)) {
+    NSString *policy = PrivateSessionPolicy()[name];
+    if (![policy isEqualToString:kServesPrivateSession]) return completion(JSON(@{@"error" : policy ?: @"private profile"}));
+    NSData *bytes = [(args.length ? args : @"{}") dataUsingEncoding:NSUTF8StringEncoding];
+    NSMutableDictionary *parsed = [[NSJSONSerialization JSONObjectWithData:bytes options:0 error:nil] mutableCopy];
+    if (![parsed isKindOfClass:NSMutableDictionary.class]) return completion(JSON(@{@"error" : @"bad arguments"}));
+    parsed[@"offTheRecord"] = @YES;
+    args = JSON(parsed);
   }
   NSString *data = ardia_host::OriginalProfileName(profile);
   void (^done)(NSString *) = [completion copy];
@@ -150,14 +168,14 @@ void InstallSink() {
   };
   auto call = (ac_engine_call_t)Symbol(name.UTF8String);
   const char *bytes = (const char *)secret.bytes;
-  if (!call || ardia_host::IsIncognito(profile) || !secret.length || bytes[secret.length - 1] != 0) {
+  if (!call || ardia_host::IsPrivateProfile(profile) || !secret.length || bytes[secret.length - 1] != 0) {
     wipe();
     return completion(JSON(@{@"error" : !call ? [NSString stringWithFormat:@"the engine has no %@", name]
-                                     : ardia_host::IsIncognito(profile) ? @"private profile" : @"bad arguments"}));
+                                     : ardia_host::IsPrivateProfile(profile) ? @"private profile" : @"bad arguments"}));
   }
   void (^done)(NSString *) = [completion copy];
   ardia_host::WithProfile(profile ?: @"", ^(ArdiaCoreProfile *p) {
-    if (!p || !ArdiaHost.isStarted || ([p respondsToSelector:@selector(offTheRecord)] && p.offTheRecord)) {
+    if (!p || !ArdiaHost.isStarted || p.offTheRecord) {
       wipe();
       return done(JSON(@{@"error" : @"profile not loaded"}));
     }
@@ -166,13 +184,9 @@ void InstallSink() {
   });
 }
 
-+ (void)setEventHandler:(void (^)(NSString *, NSString *))handler {
-  gEventHandler = [handler copy];
++ (void)forwardEngineEvents {
+  gForwarding = true;
   InstallSink();
-}
-
-+ (void)forwardTopics:(NSArray<NSString *> *)topics {
-  gForwardedTopics = [NSSet setWithArray:topics];
 }
 
 + (void)observe:(NSString *)topic handler:(void (^)(NSDictionary<NSString *, id> *))handler {
@@ -181,8 +195,5 @@ void InstallSink() {
   InstallSink();
 }
 
-+ (BOOL)exports:(NSString *)name {
-  return Symbol(name.UTF8String) != nullptr;
-}
 
 @end

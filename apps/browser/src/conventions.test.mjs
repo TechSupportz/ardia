@@ -15,22 +15,31 @@ const LAYER_FOLDERS = [
 const ENTRY_FILES = ["App", "main"];
 const MAY_IMPORT = {
   app: ["app", "components", "ui", "state", "platform", "lib"],
-  components: ["components", "ui", "state", "platform", "lib"],
+  components: ["components", "ui", "state", "lib"],
   ui: ["ui", "lib"],
   state: ["state", "platform", "lib"],
   platform: ["platform", "lib"],
   lib: ["lib"],
 };
 const MAY_CALL_NATIVE = ["platform", "ui"];
+const HANDS_PLATFORM_TO_SCRIPTS = new Set(["components/dev/devHarness.ts"]);
 
-const RULES = ["layout", "imports", "native-calls", "tokens", "get-state", "size", "env", "naming", "comments", "file-names"];
+const RULES = ["layout", "imports", "native-calls", "tokens", "get-state", "set-state", "store-reads", "store-shape", "size", "env", "naming", "comments", "file-names"];
 const SIZE_CAP = { js: 400, native: 600 };
 const SCOPES = ["apps/browser/src", "packages", "engine/ardiacore/src", "engine/chromium/src"];
 const GENERATED = new Set(["packages/core/src/bangList.ts"]);
 const ONE_INJECTED_SCRIPT = new Set(["packages/ardiacore/ios/page_script.js"]);
+const FROZEN_SPECS = new Set(["packages/core/src/suggest.reference.ts"]);
 const LAUNCH_CONFIG = [/^packages\/ardiacore\/ios\/ArdiaLaunchConfig\.\w+$/, /^apps\/browser\/src\/platform\/launchConfig\.ts$/];
 const MIGRATION_FILE = /(?:^|\/)(?:LegacyMigration\.swift|legacy\.ts|\w*[Mm]igrations?\.(?:ts|swift|mm|m))$/;
 const TOKEN_FILE = /(?:^|\/)(?:tokens|motion)\.ts$/;
+const ENGINE_ENV_READS = {
+  "engine/ardiacore/src/ardia/core/ac_main_delegate.cc": [
+    "std::string EnvironmentThatOpensTheProfile(base::Environment& env) {",
+    "std::unique_ptr<base::Environment> env = base::Environment::Create();",
+  ],
+  "engine/chromium/src/chrome/browser/ardia/ac_scripts_policy.cc": ['if (const char* home = getenv("HOME")) {'],
+};
 
 const APP_SRC = "apps/browser/src/";
 const BASELINE_PATH = `${APP_SRC}conventions-baseline.json`;
@@ -183,9 +192,13 @@ function scanSource(src, lang, embedded = false) {
         regexOk = false;
         continue;
       } else if (lang === "js" && c === "/") {
-        if (regexOk) regex();
-        else i++;
-        regexOk = !regexOk;
+        if (regexOk && !closesJsxTag(src, i)) {
+          regex();
+          regexOk = false;
+        } else {
+          i++;
+          regexOk = true;
+        }
         continue;
       }
       if (/[\w$]/.test(c)) {
@@ -197,7 +210,7 @@ function scanSource(src, lang, embedded = false) {
       if (closer && depth === 0 && c === closer) return;
       if (c === "(" || c === "[" || c === "{") depth++;
       else if (c === ")" || c === "]" || c === "}") depth--;
-      if (!/\s/.test(c)) regexOk = !(c === ")" || c === "]" || c === "}");
+      if (!/\s/.test(c)) regexOk = !(c === ")" || c === "]" || c === "}" || (c === ">" && src[i - 1] !== "="));
       i++;
     }
   };
@@ -218,11 +231,36 @@ function scanSource(src, lang, embedded = false) {
   return { comments, strings, stray, codeAndStrings };
 }
 
+function closesJsxTag(src, slash) {
+  let before = slash - 1;
+  while (before >= 0 && /\s/.test(src[before])) before--;
+  return src[before] === "<";
+}
+
 function withoutHoles(src, { start, end, holes }) {
   let text = "";
   let at = start;
   for (const [holeStart, holeEnd] of holes) {
     text += src.slice(at, holeStart) + src.slice(holeStart, holeEnd).replace(/[^\n]/g, "0");
+    at = holeEnd;
+  }
+  return text + src.slice(at, end);
+}
+
+const HEX_STRING = /^(["'`])([0-9a-f]{3,8})\1$/i;
+const HEX_BINDING = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;\n]+)?=\s*(["'`])([0-9a-f]{3,8})\2/gi;
+
+function hexBindings(code) {
+  return new Map([...code.matchAll(HEX_BINDING)].map((match) => [match[1], match[3]]));
+}
+
+function withHexHoles(src, { start, end, holes }, bindings) {
+  let text = "";
+  let at = start;
+  for (const [holeStart, holeEnd] of holes) {
+    const inner = src.slice(holeStart + 2, holeEnd - 1).trim();
+    const hex = inner.match(HEX_STRING)?.[2] ?? bindings.get(inner);
+    text += src.slice(at, holeStart) + (hex ?? src.slice(holeStart, holeEnd).replace(/[^\n]/g, "_"));
     at = holeEnd;
   }
   return text + src.slice(at, end);
@@ -259,7 +297,7 @@ function languageOf(path) {
 }
 
 function layerOf(rel) {
-  for (const [prefix, layer] of LAYER_FOLDERS) if (rel.startsWith(prefix)) return layer;
+  for (const [prefix, layer] of LAYER_FOLDERS) if (rel.startsWith(prefix) || rel === prefix.slice(0, -1)) return layer;
   if (ENTRY_FILES.includes(rel.replace(/\.(?:tsx?|mjs|js)$/, ""))) return "app";
   return null;
 }
@@ -275,7 +313,7 @@ const LEGACY_BRAND = /netnyahoo/gi;
 const LEGACY_PREFIX = /\bNN[A-Z][a-z]\w*/g;
 const APP_SIDE_OBJC_FILE = /^(?:AC[A-Z]|ArdiaCore[A-Z])\w*\.(?:h|m|mm|swift)$/;
 const APP_SIDE_OBJC_CLASS =
-  /@(?:interface|implementation|protocol)\s+(?:AC[A-Z]|ArdiaCore[A-Z])\w*\b(?!\s*[(;])|\b(?:class|struct|enum|protocol|actor|typealias)\s+(?:AC[A-Z]|ArdiaCore[A-Z])\w*|@objc\(\s*(?:AC[A-Z]|ArdiaCore[A-Z])\w*\s*\)/g;
+  /@(?:interface|implementation|protocol)\s+(?:AC[A-Z]|ArdiaCore[A-Z])\w*\b(?!\s*[(;])|(?<!@)\b(?:class|struct|enum|protocol|actor|typealias)\s+(?:AC[A-Z]|ArdiaCore[A-Z])\w*|@objc\(\s*(?:AC[A-Z]|ArdiaCore[A-Z])\w*\s*\)/g;
 const IMPORT_SPEC =
   /\b(?:import|export)\b[^;"'`]*?\bfrom\s*(["'])([^"'\n]+)\1|\bimport\s*(?:\(\s*)?(["'])([^"'\n]+)\3|\brequire\s*\(\s*(["'])([^"'\n]+)\5/g;
 const NATIVE_PACKAGE = /^(?:@ardia\/(?:ardiacore|shell|shaders|import|sync)(?:\/.*)?|expo-modules-core)$/;
@@ -283,6 +321,30 @@ const NATIVE_GLOBAL = /\bNativeModules\b(?!\s*[,}])|\brequireNative(?:Module|Com
 const COMPONENT_FILE = /^[A-Z][A-Za-z0-9]*(?:\.(?:web|native|macos|ios))?\.tsx$/;
 const MODULE_FILE = /^[a-z][A-Za-z0-9]*(?:\.(?:web|native|macos|ios))?\.(?:ts|mjs)$/;
 const TEST_NAME = /^[A-Za-z][A-Za-z0-9]*\.test\.mjs$/;
+
+function unshapedStores(code) {
+  let found = 0;
+  for (const match of code.matchAll(/(?<![.\w$])create\s*(<|\()/g)) {
+    let at = match.index + match[0].length;
+    if (match[1] === "<") {
+      for (let depth = 1; at < code.length && depth; at++) depth += code[at] === "<" ? 1 : code[at] === ">" ? -1 : 0;
+      if (!code.startsWith("()(", at)) found++;
+      else if (/^\(\)\(\s*\(\s*set\b/.test(code.slice(at, at + 40))) found++;
+    } else found++;
+  }
+  return found;
+}
+
+function envReads(path, src, code) {
+  const exempt = ENGINE_ENV_READS[path] ?? [];
+  let found = 0;
+  for (const match of code.matchAll(ENV_READ)) {
+    const lineStart = src.lastIndexOf("\n", match.index) + 1;
+    const lineEnd = src.indexOf("\n", match.index);
+    if (!exempt.includes(src.slice(lineStart, lineEnd < 0 ? src.length : lineEnd).trim())) found++;
+  }
+  return found;
+}
 
 function checkFile(path, src, add) {
   const lang = languageOf(path);
@@ -301,11 +363,11 @@ function checkFile(path, src, add) {
   }
 
   const lines = src.length ? src.split("\n").length - (src.endsWith("\n") ? 1 : 0) : 0;
-  const isJs = /\.tsx?$/.test(path) && (inApp || /^packages\/[^/]+\/src\//.test(path));
+  const isJs = /\.tsx?$/.test(path) && (inApp || /^packages\/[^/]+\/src\//.test(path)) && !FROZEN_SPECS.has(path);
   const isNative = /\.(?:swift|h|m|mm|cc|mojom|js)$/.test(path) && !ONE_INJECTED_SCRIPT.has(path);
   if ((isJs && lines > SIZE_CAP.js) || (isNative && lines > SIZE_CAP.native)) add("size", path, 1);
 
-  if (!LAUNCH_CONFIG.some((allowed) => allowed.test(path))) add("env", path, count(code, ENV_READ));
+  if (!LAUNCH_CONFIG.some((allowed) => allowed.test(path))) add("env", path, envReads(path, src, code));
 
   let naming = count(codeAndStrings, CEF_NAME);
   if (!MIGRATION_FILE.test(path)) naming += count(codeAndStrings, LEGACY_BRAND) + count(code, LEGACY_PREFIX);
@@ -317,11 +379,17 @@ function checkFile(path, src, add) {
   if (!(COMPONENT_FILE.test(base) || MODULE_FILE.test(base) || rel === "main.tsx")) add("file-names", path, 1);
 
   if (!TOKEN_FILE.test(path)) {
-    const colors = strings.reduce((sum, s) => sum + count(withoutHoles(src, s), COLOR_LITERAL), 0);
+    const bindings = hexBindings(codeAndStrings);
+    const colors = strings.reduce((sum, s) => sum + count(withHexHoles(src, s, bindings), COLOR_LITERAL), 0);
     add("tokens", path, colors + count(code, MOTION_LITERAL));
   }
 
-  if (rel.startsWith("components/")) add("get-state", path, count(code, /\bgetState\s*\(/g));
+  if (rel.startsWith("components/")) {
+    add("get-state", path, count(code, /\bgetState\s*\(/g));
+    add("set-state", path, count(code, /\.setState\s*\(/g));
+    add("store-reads", path, count(code, /\buseBrowser\s*\(/g));
+  }
+  if (/\bimport\s*\{[^}]*\bcreate\b[^}]*\}\s*from\s*["']zustand["']/.test(codeAndStrings)) add("store-shape", path, unshapedStores(code));
 
   const layer = layerOf(rel);
   let nativeCalls = count(code, NATIVE_GLOBAL);
@@ -336,7 +404,8 @@ function checkFile(path, src, add) {
     const target = posix.normalize(posix.join(posix.dirname(rel), spec));
     if (target.startsWith("..")) continue;
     const targetLayer = layerOf(target);
-    if (!targetLayer || !MAY_IMPORT[layer].includes(targetLayer)) badImports++;
+    const handsPlatformToScripts = targetLayer === "platform" && HANDS_PLATFORM_TO_SCRIPTS.has(rel);
+    if (!targetLayer || !(MAY_IMPORT[layer].includes(targetLayer) || handsPlatformToScripts)) badImports++;
   }
   if (!MAY_CALL_NATIVE.includes(layer)) add("native-calls", path, nativeCalls);
   if (!layer) add("layout", path, 1);
@@ -454,6 +523,69 @@ if (process.argv.includes("--write-baseline")) {
   console.log(problems.length ? `\nAgainst the baseline:\n${problems.join("\n")}` : "\nMatches the baseline.");
   process.exitCode = problems.length ? 1 : 0;
 } else {
+  const violationsOf = (path, src) => {
+    const found = {};
+    checkFile(path, src, (rule, _, n) => {
+      if (n > 0) found[rule] = (found[rule] ?? 0) + n;
+    });
+    return found;
+  };
+  test("a closing JSX tag doesn't hide a comment after it", () => {
+    assert.deepEqual(violationsOf("apps/browser/src/components/hello/Hello.tsx", "<Text>Hello</Text>; // comment\n"), { comments: 1 });
+  });
+  test("a closing JSX tag doesn't hide a colour after it", () => {
+    assert.deepEqual(violationsOf("apps/browser/src/components/hello/Hello.tsx", '<Text>Hello</Text>; const color = "#ff0000";\n'), { tokens: 1 });
+  });
+  test("an import of a layer's own folder maps to that layer", () => {
+    assert.deepEqual(violationsOf("apps/browser/src/components/ui/Button.tsx", 'import { Box } from ".";\n'), {});
+    assert.deepEqual(violationsOf("apps/browser/src/platform/launchConfig.ts", 'import { keys } from "../lib";\n'), {});
+  });
+  test("a store is created curried, with no set/get creator", () => {
+    const store = (body) => violationsOf("apps/browser/src/state/hello/store.ts", `import { create } from "zustand";\n${body}\n`);
+    assert.deepEqual(store("export const useA = create<{ a: number }>()(() => ({ a: 1 }));"), {});
+    assert.deepEqual(store("export const useA = create<Record<string, number>>()(() => ({}));"), {});
+    assert.deepEqual(store("export const useA = create<{ a: number }>(() => ({ a: 1 }));"), { "store-shape": 1 });
+    assert.deepEqual(store("export const useA = create<{ a: number }>()((set) => ({ a: 1 }));"), { "store-shape": 1 });
+    assert.deepEqual(store("export const useA = create((set) => ({ a: 1 }));"), { "store-shape": 1 });
+  });
+  test("an interpolation after # in a string isn't a colour", () => {
+    assert.deepEqual(violationsOf("apps/browser/src/state/hello/ids.ts", "export const id = (repo: string, n: number) => `${repo}#${n}`;\n"), {});
+    assert.deepEqual(violationsOf("apps/browser/src/state/hello/ids.ts", 'export const plum = "#C07A98";\n'), { tokens: 1 });
+    assert.deepEqual(violationsOf("apps/browser/src/state/hello/ids.ts", "export const anchor = (id: string) => `#${id}`;\n"), {});
+  });
+  test("a hex string interpolated after # is still a colour", () => {
+    assert.deepEqual(violationsOf("apps/browser/src/state/hello/colors.ts", 'export const white = `#${"fff"}`;\n'), { tokens: 1 });
+    assert.deepEqual(violationsOf("apps/browser/src/state/hello/colors.ts", 'const hex = "fff";\nexport const color = `#${hex}`;\n'), { tokens: 1 });
+  });
+  test("a forward declaration of the engine's ArdiaCore classes isn't an app-side class", () => {
+    assert.deepEqual(violationsOf("packages/hello/ios/HelloWindow.h", "@class ArdiaCoreTab;\n"), {});
+    assert.deepEqual(violationsOf("packages/hello/ios/HelloWindow.h", "@interface ArdiaCoreHello : NSObject\n@end\n"), { naming: 1 });
+  });
+  test("components neither write a store nor subscribe to the workspace store directly", () => {
+    const component = (body) => violationsOf("apps/browser/src/components/hello/Hello.tsx", `${body}\n`);
+    assert.deepEqual(component("useSidebarUi.setState({ hover: null });"), { "set-state": 1 });
+    assert.deepEqual(component("const tab = useBrowser((s) => s.tabs[id]);"), { "store-reads": 1 });
+    assert.deepEqual(component("const tab = useTab(id, (t) => t?.title);"), {});
+  });
+  test("components reach platform/ only through state, except the dev harness", () => {
+    const imports = (path, spec) => violationsOf(path, `import { webviews } from "${spec}";\n`);
+    assert.deepEqual(imports("apps/browser/src/components/find/FindBar.tsx", "../../platform/webviews"), { imports: 1 });
+    assert.deepEqual(imports("apps/browser/src/components/settings/panes/Passwords.tsx", "../../../platform/importModule"), { imports: 1 });
+    assert.deepEqual(imports("apps/browser/src/components/find/FindBar.tsx", "../../state/tabs/webviewHandles"), {});
+    assert.deepEqual(imports("apps/browser/src/components/dev/devHarness.ts", "../../platform/webviews"), {});
+    assert.deepEqual(imports("apps/browser/src/components/dev/DevPanel.tsx", "../../platform/webviews"), { imports: 1 });
+    assert.deepEqual(imports("apps/browser/src/state/tabs/webviewHandles.ts", "../../platform/webviews"), {});
+  });
+  test("only the engine's named environment reads are exempt", () => {
+    const delegate = "engine/ardiacore/src/ardia/core/ac_main_delegate.cc";
+    const policy = "engine/chromium/src/chrome/browser/ardia/ac_scripts_policy.cc";
+    const create = "  std::unique_ptr<base::Environment> env = base::Environment::Create();\n";
+    assert.deepEqual(violationsOf(delegate, create), {});
+    assert.deepEqual(violationsOf(delegate, `${create}  const char* port = getenv("PORT");\n`), { env: 1 });
+    assert.deepEqual(violationsOf(policy, '    if (const char* home = getenv("HOME")) {\n'), {});
+    assert.deepEqual(violationsOf(policy, '    const char* user = getenv("USER");\n'), { env: 1 });
+    assert.deepEqual(violationsOf("engine/chromium/src/chrome/browser/ardia/ac_other.cc", '    if (const char* home = getenv("HOME")) {\n'), { env: 1 });
+  });
   test("conventions hold, except what the baseline lists", (t) => {
     const baseline = JSON.parse(readFileSync(ROOT + BASELINE_PATH, "utf8"));
     const found = findViolations(workingTreeFiles());

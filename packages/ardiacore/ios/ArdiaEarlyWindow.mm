@@ -81,11 +81,11 @@ NSDictionary *gLittleLayout;
 
 NSString *const kLittleWindow = @"ardia.early.little-ardia";
 
-}
-
 NSMutableSet<NSString *> *Dismissed() {
   static NSMutableSet *dismissed = [NSMutableSet set];
   return dismissed;
+}
+
 }
 
 namespace ardia_early_window {
@@ -107,22 +107,13 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
   return nil;
 }
 
-bool EnvOff(const char *name) {
-  const char *value = getenv(name);
-  return value && (!strcmp(value, "off") || !strcmp(value, "0") || !strcmp(value, "false"));
-}
-
 }
 
 @implementation ArdiaEarlyWindow
 
 + (void)setDataDirectory:(NSString *)directory {
   gDirectory = [directory copy];
-  gLayoutPath = directory.length && !SwitchedOffByEnvironment() ? [directory stringByAppendingPathComponent:@"launch-layout.json"] : nil;
-}
-
-+ (BOOL)switchedOff {
-  return SwitchedOffByEnvironment();
+  gLayoutPath = directory.length ? [directory stringByAppendingPathComponent:@"launch-layout.json"] : nil;
 }
 
 + (void)noteLayoutChangeIn:(NSWindow *)window {
@@ -360,8 +351,7 @@ bool EnvOff(const char *name) {
   little.expectedURL = url;
   [self attachPage:tab key:mark];
   if (little.tab == tab && !little.inputBlock) {
-    BOOL answered = NO;
-    little.inputBlock = TabCall(tab, @"suppressInput", &answered);
+    little.inputBlock = [tab suppressInput];
     ReleaseFocusFrom(tab.view);
   }
   __weak ArdiaEarlyShown *weakLittle = little;
