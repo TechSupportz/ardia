@@ -80,19 +80,24 @@ export function LiveItemRow({ folderId, item, windowId, inStack = false }: { fol
                 style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9 + indent, paddingRight: 6 }}
               >
                 {unread ? <View style={{ position: "absolute", left: 2 + indent, width: 5, height: 5, borderRadius: 2.5, backgroundColor: theme.accent }} /> : null}
-                {resettable ? (
-                  <View {...backToPin.hoverProps}>
-                    <Pressable onPress={() => tabId && returnLiveTab(tabId)} tooltip={withShortcut("Back to Pinned URL", backToPinHint)}>
+                <View {...backToPin.hoverProps}>
+                  {resettable ? (
+                    <Pressable
+                      onPress={() => tabId && returnLiveTab(tabId)}
+                      tooltip={withShortcut("Back to Pinned URL", backToPinHint)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Back to Pinned URL"
+                    >
                       {resetting ? (
                         <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.tabSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
                       ) : (
                         <ItemIcon item={item} completion={completion} colors={colors} />
                       )}
                     </Pressable>
-                  </View>
-                ) : (
-                  <ItemIcon item={item} completion={completion} colors={colors} />
-                )}
+                  ) : (
+                    <ItemIcon item={item} completion={completion} colors={colors} />
+                  )}
+                </View>
                 <FadeLabel
                   text={resetting ? "Back to Pinned URL" : item.title}
                   fontSize={font.body.fontSize}
