@@ -2,7 +2,6 @@ import { duration } from "../ui/motion";
 import { colorRoles, ink, type ShadowLevel } from "../ui/tokens";
 
 export const TOP_STRIP_HEIGHT = 42;
-export const TOP_CARD_INSET = 6;
 export const MID = 21;
 export const ITEM_HEIGHT = 32;
 export const ITEM_TOP = MID - ITEM_HEIGHT / 2;
@@ -21,7 +20,6 @@ export const PINNED_CELL = 34;
 export const PINNED_SPACING = 2;
 export const PINNED_FACE_INSET = 2;
 export const PINNED_FACE_RADIUS = 8;
-export const PINNED_RING_STROKE = 2;
 export const DOCK_GAP = 4.5;
 export const MIN_CHIP = 96;
 export const MAX_CHIP = 173;

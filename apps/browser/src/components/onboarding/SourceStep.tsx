@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Image, StyleSheet, Text, View, type ImageSourcePropType } from "react-native";
 import { Symbol } from "../ui";
 import { font, weight } from "../ui/tokens";
-import { importModule } from "../../state/import/importApi";
 import { isWebDemo } from "../../state/onboarding/demoSteps";
 import { openImport } from "../../state/settings/settingsWindows";
 import { CONTENT_WIDTH } from "./ChoiceList";
@@ -13,7 +12,6 @@ import { SecondaryButton } from "./Buttons";
 import { CheckMark, SectionLabel, SelectTile, Tag, useOnboardingColors } from "./Parts";
 import { SetupCodeLink, SetupCodeStep } from "./SetupCodeStep";
 import { browserIcon } from "./browserIcons";
-import { GlassBacking, solidFill, useImageRing } from "./GlassBacking";
 
 const ICON = require("../../../assets/app-icon.png");
 
@@ -70,7 +68,7 @@ export function SourceStep() {
   const found = tiles.filter((t) => t.app);
   const others = tiles.filter((t) => !t.app);
   const chosen = tiles.find((t) => t.id === source);
-  const canImport = !isWebDemo && !!chosen?.app && !!importModule();
+  const canImport = !isWebDemo && !!chosen?.app;
   const choose = (id: BrowserSourceId) => chooseSource(id);
 
   const startImport = () => {
@@ -117,12 +115,11 @@ export function SourceStep() {
             gap: 12,
             padding: 12,
             borderRadius: 12,
-            backgroundColor: solidFill(colors.row),
+            backgroundColor: colors.row,
             borderWidth: StyleSheet.hairlineWidth * 2,
             borderColor: colors.rowBorder,
           }}
         >
-          <GlassBacking fill={colors.row} radius={12} border={StyleSheet.hairlineWidth * 2} />
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={{ ...font.body, fontWeight: weight.medium, color: colors.title }}>
               {importing === chosen.id ? `Importing from ${chosen.name}` : `Bring your stuff from ${chosen.name}`}
@@ -151,9 +148,8 @@ function TileGrid({ tiles, selected, onPress, fresh }: { tiles: Tile[]; selected
 
 function SourceTile({ title, icon, symbol, selected, onPress }: { title: string; icon: ImageSourcePropType | null; symbol: string; selected: boolean; onPress: () => void }) {
   const colors = useOnboardingColors();
-  const ring = useImageRing(icon, selected);
   return (
-    <SelectTile title={title} width={TILE} height={68} gap={5} checkSize={13} selected={selected} role="radio" titlePad={4} titleLines={1} ring={ring} onPress={onPress}>
+    <SelectTile title={title} width={TILE} height={68} gap={5} checkSize={13} selected={selected} role="radio" titlePad={4} titleLines={1} onPress={onPress}>
       {() =>
         icon ? (
           <Image source={icon} style={{ width: 30, height: 30 }} />

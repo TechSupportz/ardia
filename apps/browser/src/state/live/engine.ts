@@ -3,7 +3,7 @@ import { everySlowly } from "../../platform/slowTimers";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId, inPinnedContainer, viewTabIds } from "../browser/model";
 import { awayFromPin } from "../pins/organize";
-import { pinnedGroupMembers } from "../pins/pinHomes";
+import { pinnedGroupMembers } from "../browser/structure";
 import { SOURCES } from "./sources";
 import { applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
@@ -125,7 +125,7 @@ export function errorText(kind: LiveError["kind"], source: LiveSourceId): string
 
 export function newLiveFolder(windowId: string, kind: LiveFolderKind): string | null {
   const w = useBrowser.getState().windows[windowId];
-  if (!w || w.incognito) return null;
+  if (!w || w.kind === "private") return null;
   return newProfileLiveFolder(w.profileId, kind);
 }
 
@@ -190,9 +190,9 @@ export function startLiveEngine() {
   };
   const liveHomes = () => {
     const s = useBrowser.getState();
-    const members = pinnedGroupMembers(s);
+    const members = pinnedGroupMembers(s.groups);
     for (const t of Object.values(s.tabs)) {
-      if (!t.liveItem || t.pinned || members.has(t.id) || !live().items[t.liveItem.folderId]) continue;
+      if (!t.liveItem || t.pin || members.has(t.id) || !live().items[t.liveItem.folderId]) continue;
       const home = folderItem(t.liveItem.folderId, t.liveItem.itemId)?.url ?? null;
       if (home !== t.pinnedUrl) s.updateTab(t.id, { pinnedUrl: home });
     }
@@ -229,14 +229,6 @@ export function startLiveEngine() {
   });
   onWindowEvent((e) => {
     if (e.type === "focus") for (const id of live().folderOrder) if (due(id, STALE_ON_FOCUS_MS)) void refreshFolder(id);
-  });
-
-  useBrowser.subscribe((s, prev) => {
-    if (s.tabs === prev.tabs) return;
-    for (const id in s.tabs) {
-      const t = s.tabs[id]!;
-      if (t.pinned && t.liveItem && !prev.tabs[id]?.pinned) useBrowser.getState().updateTab(id, { liveItem: undefined });
-    }
   });
 
   useBrowser.subscribe((s, prev) => {

@@ -1,5 +1,11 @@
 import type { AreaLightPalette } from "@ardia/shaders";
 import type { ProfileColor } from "../../lib/profileLook";
+import { parseColor } from "../../lib/color";
+
+export function withAlpha(color: string, alpha: number): string {
+  const [r, g, b] = parseColor(color);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 export const ink = { white: "#FFFFFF", black: "#000000", clear: "#00000000", neutralGrey: "#808080A6" } as const;
 
@@ -123,7 +129,7 @@ const lightRoles: ColorRoles = {
   tabSelectedShadow: "rgba(0,0,0,0.12)",
   tabSelectedShadowRadius: 12.5,
   pinnedResting: "rgba(0,0,0,0.05)",
-  pinnedRestingStroke: "rgba(0,0,0,0.18)",
+  pinnedRestingStroke: "rgba(0,0,0,0.2)",
   pinnedSelectedFill: "rgba(255,255,255,0.7)",
   pinnedSelectedRim: "rgba(0,0,0,0.12)",
   pinnedSelectedOutline: "rgba(255,255,255,0.98)",
