@@ -223,7 +223,9 @@ BOOL TracingPictureInPicture() {
     const BOOL active = [state[@"active"] boolValue];
     if (!active && !_reports.inPictureInPicture) return;
     _reports.inPictureInPicture = active;
-    [self emit:@"pictureInPicture" payload:@{@"kind" : @"video", @"active" : @(active)}];
+    NSDictionary *gestures = active ? nil : ardia_pip::TakeGestureCounts(self);
+    [self emit:@"pictureInPicture"
+        payload:gestures ? @{@"kind" : @"video", @"active" : @NO, @"gestures" : gestures} : @{@"kind" : @"video", @"active" : @(active)}];
     if (!active) return;
     ardia_pip::WatchZoom();
     ardia_pip::VideoEntered(self, [NSURL URLWithString:tab.url ?: @""].host ?: @"");

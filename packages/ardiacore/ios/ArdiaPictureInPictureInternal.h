@@ -20,6 +20,7 @@ namespace ardia_pip {
 
 constexpr CGFloat kPeek = 28;
 constexpr CGFloat kReturnMargin = 16;
+constexpr CGFloat kOpenShare = 0.25;
 constexpr CGFloat kButtonMargin = 12, kButtonSize = 28;
 constexpr CFTimeInterval kCornerBendDuration = 0.2;
 constexpr CGFloat kRimAlpha = 0.17;
@@ -53,7 +54,6 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 - (void)roundCorners;
 - (CGFloat)cornerRadius;
 - (void)backToTab;
-- (void)unstash;
 - (NSMenu *)menu;
 - (void)stopMotion;
 - (void)abandonSwipe;
@@ -71,6 +71,8 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
   BOOL _keepOnTop;
   NSMutableArray *_observers;
   NSTimer *_slide;
+  NSRect _slideTarget;
+  NSInteger _throwCount, _stashCount, _flungStashCount, _caretClickCount, _caretDragCount;
   BOOL _animating;
   BOOL _sawDrag;
   BOOL _swiping;
@@ -97,17 +99,30 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 - (void)screenChanged;
 - (NSScreen *)homeScreen;
 - (ArdiaPiPEdge)edgeBeyond;
-- (BOOL)throwFrom:(NSPoint)grab velocity:(NSPoint)velocity;
+- (BOOL)throwWithVelocity:(NSPoint)velocity;
 - (void)throwTo:(NSRect)target velocity:(NSPoint)velocity corner:(int)corner;
 - (void)settle;
 - (void)rescueIfLost;
-- (NSRect)frameStashedAt:(ArdiaPiPEdge)edge;
-- (void)stashAt:(ArdiaPiPEdge)edge;
-- (void)animateTo:(NSRect)target;
+- (void)springTo:(NSRect)target velocity:(NSPoint)velocity response:(double)response record:(NSMutableDictionary *)record;
 - (void)swipeBegan:(NSEvent *)event;
 - (void)moveBy:(ardia_pip_throw::Point)delta;
 - (void)swipeMoved:(NSEvent *)event;
 - (void)swipeEnded:(NSEvent *)event cancelled:(BOOL)cancelled;
+- (BOOL)displayBeyond:(ArdiaPiPEdge)side;
+- (void)springSettled;
+@end
+
+@interface ArdiaPiPController (Stash)
+- (ArdiaPiPEdge)landWithVelocity:(NSPoint)velocity flings:(BOOL)flings thrown:(BOOL *)thrown;
+- (NSRect)frameStashedAt:(ArdiaPiPEdge)edge;
+- (void)stashAt:(ArdiaPiPEdge)edge;
+- (void)stashAt:(ArdiaPiPEdge)edge velocity:(NSPoint)velocity;
+- (void)unstash;
+- (void)unstashWithVelocity:(NSPoint)velocity;
+- (void)setStashedEdge:(ArdiaPiPEdge)edge;
+- (void)revealHandle;
+- (void)countCaretPress:(BOOL)dragged;
+- (NSDictionary *)takeGestureCounts;
 @end
 
 @interface ArdiaPiPController (Workspaces)

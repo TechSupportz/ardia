@@ -110,7 +110,8 @@ export type WebNotification = {
   isMainFrame: boolean;
 };
 
-export type PictureInPictureState = { kind: "video" | "document"; active: boolean; fullScreenSpaces?: boolean; leftApp?: boolean };
+export type PictureInPictureGestures = { throws: number; stashes: number; flungStashes: number; caretClicks: number; caretDrags: number };
+export type PictureInPictureState = { kind: "video" | "document"; active: boolean; fullScreenSpaces?: boolean; leftApp?: boolean; gestures?: PictureInPictureGestures };
 export type AutoPictureInPictureHold = "onScreen" | "appSwitch" | "nothingPlaying";
 export type ControlPress = { clickAt: number; control: number };
 export type ActivateRequest = { reason: "pictureInPicture" };

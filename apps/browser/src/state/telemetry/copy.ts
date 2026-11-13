@@ -87,6 +87,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times Ardia ended a page drag that would otherwise have left the page ignoring clicks and typing: one the ardia command or a debugger started and left behind, or one macOS refused to start. Summed up once an hour, never which page",
       "Opening split view, switching profiles and opening the command bar, with where it opened: at the address, in the centre, in the centre because the address was out of sight, or for a new tab",
       "Opening Picture in Picture: video or page, whether its window can show over full-screen apps, and whether it opened while you were in another app because the video's window was out of sight",
+      "Closing a Picture in Picture window: how many times it was thrown to a corner, tucked to a side (and how many of those by a fling), and how often its tucked handle was clicked or dragged",
       "After you let a site use your location: whether macOS gave Ardia location access, you said no in macOS's prompt, it was already off in System Settings, or the check failed, one event each time. Never which site or where you are",
       "How many times automatic Picture in Picture held back because a playing tab's window was still on a screen, either though macOS reported it covered or when you switched to another app, summed up once an hour",
       "How many times automatic Picture in Picture held back in a WebKit tab because no video was playing at the moment you left it, summed up once an hour",

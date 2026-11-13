@@ -3757,6 +3757,51 @@ try {
           await pipAct("swipe:400,-300,8");
           await landed("bottomRight");
         }
+        const stashedX = vx + vw - 28, openX = vx + vw - pw - 16;
+        const restsAt = (what, wantX) => until(what, async () => {
+          const w = await shown();
+          const [x] = rect(w.frame);
+          return Math.abs(x - wantX) < 1 ? w : null;
+        }, 5000).catch(async (e) => {
+          throw new Error(`${e.message}: ${JSON.stringify({ frame: (await shown())?.frame, info: JSON.parse(await pipAct("throw")).lastRelease })}`);
+        });
+        const onCaret = `14,${Math.round(ph / 2)}`;
+        const dragAndRelease = async (args) => {
+          const [, , steps, interval, pause] = args.split(",").map(Number);
+          await pipAct(`drag:${args}`);
+          await sleep(steps * interval + pause + 150);
+        };
+        await dragAndRelease("120,0,3,8,0");
+        const flung = JSON.parse(await pipAct("throw")).lastRelease;
+        if (!flung.flings || flung.stashed !== 1) throw new Error(`a short fling toward the right side didn't stash: ${JSON.stringify(flung)}`);
+        await restsAt("a fling toward the right side stashes it", stashedX);
+        await sleep(400);
+        await dragAndRelease(`0,0,1,8,0,${onCaret}`);
+        await restsAt("a click on the caret opens it", openX);
+        await pipAct("stash");
+        await restsAt("stashed again", stashedX);
+        await sleep(400);
+        const share = Math.round(pw * 0.25);
+        await dragAndRelease(`${-(share - 28 - 20)},0,20,30,0,${onCaret}`);
+        const tucked = JSON.parse(await pipAct("throw")).lastRelease;
+        if (tucked.stashed !== 1 || rect(tucked.frame)[0] > stashedX - 10)
+          throw new Error(`a pull under 25 % wasn't a pull that tucked back: ${JSON.stringify(tucked)}`);
+        await restsAt("pulled out under 25 % it tucks back", stashedX);
+        await sleep(400);
+        await dragAndRelease(`${-(share - 28 + 40)},0,20,30,0,${onCaret}`);
+        await restsAt("pulled out past 25 % it opens", openX);
+        await pipAct("stash");
+        await restsAt("stashed for the inward fling", stashedX);
+        await sleep(400);
+        await dragAndRelease(`-60,0,4,8,0,${onCaret}`);
+        await restsAt("a fling inward from the caret opens it", openX);
+        corners.stash = { stashedX, openX, share };
+        await evalApp(`return ac.webviews.get("${tab.id}").exitPictureInPicture()`);
+        const gestures = await until("the gesture counts sent as PiP ends", async () =>
+          (await eventsOf(tab.id)).filter((x) => x.name === "pictureInPicture" && x.payload?.gestures).at(-1)?.payload.gestures ?? null, 5000);
+        if (!(gestures.throws >= 5 && gestures.stashes >= 3 && gestures.flungStashes >= 1 && gestures.caretClicks >= 1 && gestures.caretDrags >= 3))
+          throw new Error(`gesture counts: ${JSON.stringify(gestures)}`);
+        corners.gestures = gestures;
       }
       return {
         corners,

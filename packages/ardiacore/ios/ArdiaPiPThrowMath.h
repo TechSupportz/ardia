@@ -21,36 +21,23 @@ constexpr double kCornerInset = 10;
 constexpr double kBrowserCardInset = 9, kBrowserCardRadius = 10;
 constexpr double kFreeRadius = 6;
 constexpr double kSnappedRadius = kBrowserCardRadius - (kCornerInset - kBrowserCardInset);
-constexpr double kCornerTolerance = kPi / 4;
+constexpr double kProjectionSeconds = 0.5;
 constexpr double kDragFlingSpeed = 350;
 constexpr double kSwipeFlingDelta = 6;
 constexpr double kSwipeEventsPerSecond = 90;
-constexpr double kResponse = 0.9, kDampingRatio = 0.9, kResolve = 0.2;
+constexpr double kResponse = 0.55, kSettleResponse = 0.45, kDampingRatio = 0.9, kResolve = 0.2;
 constexpr double kVelocityWindow = 0.1, kVelocityStale = 0.05;
 
-inline Point CornerPoint(Corner corner, Rect r) {
-  const bool left = corner == kTopLeft || corner == kBottomLeft;
-  const bool top = corner == kTopLeft || corner == kTopRight;
-  return {left ? r.x : r.maxX(), top ? r.maxY() : r.y};
+inline Point Projected(Point from, Point velocity) {
+  return {from.x + velocity.x * kProjectionSeconds, from.y + velocity.y * kProjectionSeconds};
 }
 
-inline double AngleApart(double a, double b) {
-  double d = std::fabs(a - b);
-  d -= std::floor(d / (2 * kPi)) * 2 * kPi;
-  return d < kPi ? d : 2 * kPi - d;
-}
-
-inline Corner PickCorner(Point from, Point velocity, Rect screen) {
+inline Corner PickCorner(Point center, Point velocity, Rect area) {
   if (velocity.x == 0 && velocity.y == 0) return kNoCorner;
-  const double heading = std::atan2(velocity.y, velocity.x);
-  Corner best = kNoCorner;
-  double closest = kCornerTolerance;
-  for (Corner corner : {kTopLeft, kTopRight, kBottomLeft, kBottomRight}) {
-    const Point p = CornerPoint(corner, screen);
-    const double apart = AngleApart(std::atan2(p.y - from.y, p.x - from.x), heading);
-    if (apart < closest) best = corner, closest = apart;
-  }
-  return best;
+  const Point landing = Projected(center, velocity);
+  const bool left = landing.x < area.x + area.w / 2;
+  const bool top = landing.y >= area.y + area.h / 2;
+  return top ? (left ? kTopLeft : kTopRight) : (left ? kBottomLeft : kBottomRight);
 }
 
 inline Rect CornerFrame(Corner corner, double w, double h, Rect visible) {
@@ -127,6 +114,17 @@ inline bool DisplayBeyond(Rect window, int current, const Screen *screens, int c
     if (touches && beside) return true;
   }
   return false;
+}
+
+enum FlungSide : int { kFlungNowhere = 0, kFlungLeft = 1, kFlungRight = 2 };
+
+inline FlungSide FlungOffSide(Rect window, Point velocity, Rect visible, bool screenLeft, bool screenRight) {
+  if (std::fabs(velocity.x) <= std::fabs(velocity.y)) return kFlungNowhere;
+  const Point landing = Projected({window.x + window.w / 2, window.y + window.h / 2}, velocity);
+  const double reach = window.w / 2;
+  if (velocity.x > 0 && !screenRight && window.maxX() >= visible.maxX() - reach && landing.x > visible.maxX()) return kFlungRight;
+  if (velocity.x < 0 && !screenLeft && window.x <= visible.x + reach && landing.x < visible.x) return kFlungLeft;
+  return kFlungNowhere;
 }
 
 inline Rect Usable(int i, Rect window, const Screen *screens, int count) {

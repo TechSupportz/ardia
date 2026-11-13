@@ -14,4 +14,6 @@ void DocumentEntered(ArdiaWebView *view);
 
 void TabRequestedActivation(ArdiaWebView *view);
 
+NSDictionary *TakeGestureCounts(ArdiaWebView *view);
+
 }
