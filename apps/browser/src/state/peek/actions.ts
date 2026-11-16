@@ -12,25 +12,30 @@ import { closeFind } from "../find/actions";
 import { hostOf } from "@ardia/core";
 import { linkDestination } from "../../lib/linkWrappers";
 import { navigationOf } from "../tabs/pageSession";
+import { holdPeekDonor } from "./donors";
 
 const store = () => useBrowser.getState();
-const closers = new Map<string, () => void>();
-const expanders = new Map<string, (done: () => void) => void>();
+type PeekMotionHandle = { tabId: string; close: () => Promise<boolean>; promote: () => Promise<boolean> };
+const motions = new Map<string, PeekMotionHandle>();
 
-export function registerPeekMotion(windowId: string, close: () => void, expand: (done: () => void) => void) {
-  closers.set(windowId, close);
-  expanders.set(windowId, expand);
+export function registerPeekMotion(windowId: string, handle: PeekMotionHandle) {
+  motions.set(windowId, handle);
   return () => {
-    if (closers.get(windowId) === close) closers.delete(windowId);
-    if (expanders.get(windowId) === expand) expanders.delete(windowId);
+    if (motions.get(windowId) === handle) motions.delete(windowId);
   };
 }
 
+const motionOf = (windowId: string) => {
+  const motion = motions.get(windowId);
+  return motion && motion.tabId === store().peeks[windowId]?.tabId ? motion : undefined;
+};
+
 export function dismissPeek(windowId: string) {
-  if (!store().peeks[windowId]) return;
-  const close = closers.get(windowId);
-  if (close) close();
-  else finishPeek(windowId, store().peeks[windowId]!.tabId);
+  const peek = store().peeks[windowId];
+  if (!peek) return;
+  const motion = motionOf(windowId);
+  if (motion) void motion.close();
+  else finishPeek(windowId, peek.tabId);
 }
 
 export function finishPeek(windowId: string, tabId: string) {
@@ -39,21 +44,28 @@ export function finishPeek(windowId: string, tabId: string) {
   store().closePeek(windowId);
 }
 
-const focusSoon = (tabId: string) => setTimeout(() => void webviews.get(tabId)?.focus(), 50);
+const focusSoon = (windowId: string, tabId: string) =>
+  setTimeout(() => {
+    const s = store();
+    if (s.tabs[tabId] && activeTabId(s, windowId) === tabId && !s.peeks[windowId]) void webviews.get(tabId)?.focus();
+  }, 50);
+
+export function promotePeekNow(windowId: string, tabId: string) {
+  const peek = store().peeks[windowId];
+  if (peek?.tabId !== tabId) return;
+  holdPeekDonor(windowId, tabId, peek.sourceId);
+  const id = store().peekToTab(windowId);
+  if (!id) return;
+  hapticTick();
+  focusSoon(windowId, id);
+}
 
 export function openPeekAsTab(windowId: string) {
   const peek = store().peeks[windowId];
   if (!peek) return;
-  const promote = () => {
-    if (store().peeks[windowId]?.tabId !== peek.tabId) return;
-    const id = store().peekToTab(windowId);
-    if (!id) return;
-    hapticTick();
-    focusSoon(id);
-  };
-  const expand = expanders.get(windowId);
-  if (expand) expand(promote);
-  else promote();
+  const motion = motionOf(windowId);
+  if (motion) void motion.promote();
+  else promotePeekNow(windowId, peek.tabId);
 }
 
 export function openPeekInSplit(windowId: string) {
@@ -65,7 +77,7 @@ export function openPeekInSplit(windowId: string) {
   }
   const id = s.peekToTab(windowId, { activate: false });
   if (!id) return;
-  if (openSplitPane(windowId, { tabId: id, anchorTabId: peek.sourceId, side: "right" })) focusSoon(id);
+  if (openSplitPane(windowId, { tabId: id, anchorTabId: peek.sourceId, side: "right" })) focusSoon(windowId, id);
   else store().activate(id);
 }
 
@@ -184,3 +196,9 @@ function bumpOnFirstLoad(s: BrowserState, prev: BrowserState) {
 }
 
 export const currentShownPageId = (windowId: string) => shownPageId(useBrowser.getState(), windowId);
+
+export function promotedFromPeek(tabId: string): boolean {
+  const s = store();
+  const tab = s.tabs[tabId];
+  return !!tab && s.peeks[tab.windowId]?.tabId !== tabId;
+}

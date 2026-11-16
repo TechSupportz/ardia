@@ -1,0 +1,708 @@
+{
+  "when": "2026-11-16T04:22:27.945Z",
+  "page": "file:///Users/tnitish/Developer/Github/ardia/extras/peek-prototype/index.html",
+  "passed": 94,
+  "failed": 0,
+  "results": [
+    {
+      "group": "Seamless",
+      "name": "auto-open reaches open",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Seamless",
+      "name": "F10 open settles under 300 ms",
+      "ok": true,
+      "detail": [
+        278
+      ]
+    },
+    {
+      "group": "Seamless",
+      "name": "F10 Esc close under 300 ms",
+      "ok": true,
+      "detail": [
+        210
+      ]
+    },
+    {
+      "group": "Seamless",
+      "name": "F7 Esc with nothing open is harmless",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Seamless",
+      "name": "F9 open animates transform, not layout",
+      "ok": true,
+      "detail": {
+        "layoutSizes": [
+          "1001x716"
+        ],
+        "rectMin": 390,
+        "rectMax": 1001
+      }
+    },
+    {
+      "group": "Seamless",
+      "name": "F17 clicking inside the card keeps it open",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Seamless",
+      "name": "F5 scrim click closes",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Seamless",
+      "name": "F1 ctrl-wheel pinches the Peek, page doesn't zoom",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Seamless",
+      "name": "F2 below-threshold pinch springs back to rest",
+      "ok": true,
+      "detail": {
+        "identity": true,
+        "animating": false,
+        "strips": 0,
+        "kind": "seamless"
+      }
+    },
+    {
+      "group": "Seamless",
+      "name": "F13 ctrl held never flips the variant",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Seamless",
+      "name": "F13 ctrl+number ignored by picker",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Seamless",
+      "name": "F5 pinch-in closes",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Seamless",
+      "name": "F16 pinch during open keeps the card (no reset, no error)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Seamless",
+      "name": "F3 one pinch promotes exactly once",
+      "ok": true,
+      "detail": {
+        "before": 3,
+        "after": 4
+      }
+    },
+    {
+      "group": "Seamless",
+      "name": "F4 the new tab is the only active row",
+      "ok": true,
+      "detail": [
+        "n5"
+      ]
+    },
+    {
+      "group": "Seamless",
+      "name": "F4 content shows the promoted page",
+      "ok": true,
+      "detail": {
+        "peekTitle": "Continuity is the feature"
+      }
+    },
+    {
+      "group": "Seamless",
+      "name": "F10 pinch promote under 300 ms",
+      "ok": true,
+      "detail": [
+        259
+      ]
+    },
+    {
+      "group": "Seamless",
+      "name": "F19 scroll position carries into the tab",
+      "ok": true,
+      "detail": {
+        "peekScroll": 180,
+        "after": 180
+      }
+    },
+    {
+      "group": "Seamless",
+      "name": "promote button is reachable by accessible name",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Seamless",
+      "name": "F9 promote animates transform, not layout",
+      "ok": true,
+      "detail": [
+        "1001x716"
+      ]
+    },
+    {
+      "group": "Seamless",
+      "name": "button promote: new tab active, 5 tabs",
+      "ok": true,
+      "detail": [
+        "n7"
+      ]
+    },
+    {
+      "group": "Seamless",
+      "name": "F18 switching tabs closes the Peek and activates that row",
+      "ok": true,
+      "detail": [
+        "t2"
+      ]
+    },
+    {
+      "group": "Seamless",
+      "name": "F12 clicking during close leaves exactly one card",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Seamless",
+      "name": "F6 replay mid-open resets the scene",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Seamless",
+      "name": "F6 switching variant mid-promote leaves a clean scene",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "auto-open reaches open",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "F10 open settles under 300 ms",
+      "ok": true,
+      "detail": [
+        219
+      ]
+    },
+    {
+      "group": "Little Window",
+      "name": "F10 Esc close under 300 ms",
+      "ok": true,
+      "detail": [
+        161
+      ]
+    },
+    {
+      "group": "Little Window",
+      "name": "F7 Esc with nothing open is harmless",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "F9 open animates transform, not layout",
+      "ok": true,
+      "detail": {
+        "layoutSizes": [
+          "440x560"
+        ],
+        "rectMin": 426,
+        "rectMax": 440
+      }
+    },
+    {
+      "group": "Little Window",
+      "name": "F17 clicking inside the card keeps it open",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "page behind stays usable; outside click keeps the window",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "F5 close button closes",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "F1 ctrl-wheel pinches the Peek, page doesn't zoom",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "F2 below-threshold pinch springs back to rest",
+      "ok": true,
+      "detail": {
+        "identity": true,
+        "animating": false,
+        "strips": 0,
+        "kind": "little"
+      }
+    },
+    {
+      "group": "Little Window",
+      "name": "F13 ctrl held never flips the variant",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "F13 ctrl+number ignored by picker",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "F5 pinch-in closes",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "F16 pinch during open keeps the card (no reset, no error)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "F3 one pinch promotes exactly once",
+      "ok": true,
+      "detail": {
+        "before": 3,
+        "after": 4
+      }
+    },
+    {
+      "group": "Little Window",
+      "name": "F4 the new tab is the only active row",
+      "ok": true,
+      "detail": [
+        "n5"
+      ]
+    },
+    {
+      "group": "Little Window",
+      "name": "F4 content shows the promoted page",
+      "ok": true,
+      "detail": {
+        "peekTitle": "Continuity is the feature"
+      }
+    },
+    {
+      "group": "Little Window",
+      "name": "F10 pinch promote under 300 ms",
+      "ok": true,
+      "detail": [
+        255
+      ]
+    },
+    {
+      "group": "Little Window",
+      "name": "promote button is reachable by accessible name",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "F9 promote animates transform, not layout",
+      "ok": true,
+      "detail": [
+        "440x560"
+      ]
+    },
+    {
+      "group": "Little Window",
+      "name": "button promote: new tab active, 5 tabs",
+      "ok": true,
+      "detail": [
+        "n7"
+      ]
+    },
+    {
+      "group": "Little Window",
+      "name": "F18 switching tabs closes the Peek and activates that row",
+      "ok": true,
+      "detail": [
+        "t2"
+      ]
+    },
+    {
+      "group": "Little Window",
+      "name": "F12 clicking during close leaves exactly one card",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "F15 Copy Link gives feedback",
+      "ok": true,
+      "detail": "Copied"
+    },
+    {
+      "group": "Little Window",
+      "name": "F14 drag stays inside the window",
+      "ok": true,
+      "detail": {
+        "win": {
+          "x": 20,
+          "y": 20,
+          "width": 1400,
+          "height": 796
+        },
+        "card": {
+          "x": 972,
+          "y": 248,
+          "width": 440,
+          "height": 560
+        }
+      }
+    },
+    {
+      "group": "Little Window",
+      "name": "F6 replay mid-open resets the scene",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window",
+      "name": "F6 switching variant mid-promote leaves a clean scene",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie",
+      "name": "auto-open reaches open",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie",
+      "name": "F10 open settles under 300 ms",
+      "ok": true,
+      "detail": [
+        295
+      ]
+    },
+    {
+      "group": "Genie",
+      "name": "F10 Esc close under 300 ms",
+      "ok": true,
+      "detail": [
+        285
+      ]
+    },
+    {
+      "group": "Genie",
+      "name": "F7 Esc with nothing open is harmless",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie",
+      "name": "F9 open animates transform, not layout",
+      "ok": true,
+      "detail": {
+        "layoutSizes": [
+          "1026x694"
+        ],
+        "rectMin": 707,
+        "rectMax": 1026
+      }
+    },
+    {
+      "group": "Genie",
+      "name": "F11 mid-page link: strip nearest the link lags (narrower) mid-open",
+      "ok": true,
+      "detail": {
+        "linkY": 528,
+        "near": 725,
+        "far": 809
+      }
+    },
+    {
+      "group": "Genie",
+      "name": "F11 bottom link: strip nearest the link lags (narrower) mid-open",
+      "ok": true,
+      "detail": {
+        "linkY": 572,
+        "near": 623,
+        "far": 749
+      }
+    },
+    {
+      "group": "Genie",
+      "name": "F17 clicking inside the card keeps it open",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie",
+      "name": "F5 scrim click closes",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie",
+      "name": "F1 ctrl-wheel pinches the Peek, page doesn't zoom",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie",
+      "name": "F2 below-threshold pinch springs back to rest",
+      "ok": true,
+      "detail": {
+        "identity": true,
+        "animating": false,
+        "strips": 0,
+        "kind": "genie"
+      }
+    },
+    {
+      "group": "Genie",
+      "name": "F13 ctrl held never flips the variant",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie",
+      "name": "F13 ctrl+number ignored by picker",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie",
+      "name": "F5 pinch-in closes",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie",
+      "name": "F16 pinch during open keeps the card (no reset, no error)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie",
+      "name": "F3 one pinch promotes exactly once",
+      "ok": true,
+      "detail": {
+        "before": 3,
+        "after": 4
+      }
+    },
+    {
+      "group": "Genie",
+      "name": "F4 the new tab is the only active row",
+      "ok": true,
+      "detail": [
+        "n7"
+      ]
+    },
+    {
+      "group": "Genie",
+      "name": "F4 content shows the promoted page",
+      "ok": true,
+      "detail": {
+        "peekTitle": "Continuity is the feature"
+      }
+    },
+    {
+      "group": "Genie",
+      "name": "F10 pinch promote under 300 ms",
+      "ok": true,
+      "detail": [
+        256
+      ]
+    },
+    {
+      "group": "Genie",
+      "name": "promote button is reachable by accessible name",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie",
+      "name": "F9 promote animates transform, not layout",
+      "ok": true,
+      "detail": [
+        "1026x694"
+      ]
+    },
+    {
+      "group": "Genie",
+      "name": "button promote: new tab active, 5 tabs",
+      "ok": true,
+      "detail": [
+        "n9"
+      ]
+    },
+    {
+      "group": "Genie",
+      "name": "F18 switching tabs closes the Peek and activates that row",
+      "ok": true,
+      "detail": [
+        "t2"
+      ]
+    },
+    {
+      "group": "Genie",
+      "name": "F12 clicking during close leaves exactly one card",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie",
+      "name": "F6 replay mid-open resets the scene",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie",
+      "name": "F6 switching variant mid-promote leaves a clean scene",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Seamless (reduced motion)",
+      "name": "F8 open never scales or moves the card",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "group": "Seamless (reduced motion)",
+      "name": "reduced open is a short fade",
+      "ok": true,
+      "detail": [
+        169
+      ]
+    },
+    {
+      "group": "Seamless (reduced motion)",
+      "name": "F8 pinch promote with no travel or scale",
+      "ok": true,
+      "detail": {
+        "movedP": 0,
+        "rowMoves": []
+      }
+    },
+    {
+      "group": "Seamless (reduced motion)",
+      "name": "reduced pinch still promotes to an active tab",
+      "ok": true,
+      "detail": [
+        "n2"
+      ]
+    },
+    {
+      "group": "Seamless (reduced motion)",
+      "name": "reduced Esc closes",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Little Window (reduced motion)",
+      "name": "F8 open never scales or moves the card",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "group": "Little Window (reduced motion)",
+      "name": "reduced open is a short fade",
+      "ok": true,
+      "detail": [
+        164
+      ]
+    },
+    {
+      "group": "Little Window (reduced motion)",
+      "name": "F8 pinch promote with no travel or scale",
+      "ok": true,
+      "detail": {
+        "movedP": 0,
+        "rowMoves": []
+      }
+    },
+    {
+      "group": "Little Window (reduced motion)",
+      "name": "reduced pinch still promotes to an active tab",
+      "ok": true,
+      "detail": [
+        "n2"
+      ]
+    },
+    {
+      "group": "Little Window (reduced motion)",
+      "name": "reduced Esc closes",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "Genie (reduced motion)",
+      "name": "F8 open never scales or moves the card",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "group": "Genie (reduced motion)",
+      "name": "reduced open is a short fade",
+      "ok": true,
+      "detail": [
+        166
+      ]
+    },
+    {
+      "group": "Genie (reduced motion)",
+      "name": "F8 pinch promote with no travel or scale",
+      "ok": true,
+      "detail": {
+        "movedP": 0,
+        "rowMoves": []
+      }
+    },
+    {
+      "group": "Genie (reduced motion)",
+      "name": "reduced pinch still promotes to an active tab",
+      "ok": true,
+      "detail": [
+        "n2"
+      ]
+    },
+    {
+      "group": "Genie (reduced motion)",
+      "name": "reduced Esc closes",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "group": "all",
+      "name": "F20 no console or page errors",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "errors": []
+}

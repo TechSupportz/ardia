@@ -1,0 +1,1453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Peek Prototypes</title>
+<style>
+:root {
+  --desk: linear-gradient(135deg, #C9D3E6 0%, #E7D9CF 55%, #D8CFE4 100%);
+  --win-tint: #ECE8E3;
+  --win-shadow: 0 30px 80px rgba(0, 0, 0, 0.22), 0 0 0 0.5px rgba(0, 0, 0, 0.18);
+  --page: #FFFFFF;
+  --page-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --text: rgba(0, 0, 0, 0.9);
+  --text2: rgba(0, 0, 0, 0.5);
+  --text3: rgba(0, 0, 0, 0.35);
+  --row-hover: rgba(0, 0, 0, 0.07);
+  --row-active: rgba(255, 255, 255, 0.82);
+  --row-active-shadow: 0 0.5px 1.5px rgba(0, 0, 0, 0.12);
+  --divider: rgba(0, 0, 0, 0.09);
+  --accent: #6395FC;
+  --scrim: rgba(0, 0, 0, 0.25);
+  --peek-fill: #F4F1ED;
+  --peek-shadow: 0 21px 46px rgba(0, 0, 0, 0.38);
+  --outer-rim: rgba(0, 0, 0, 0.15);
+  --inner-rim: rgba(255, 255, 255, 0);
+  --field: rgba(0, 0, 0, 0.05);
+  --hero-a: #F2C6A8;
+  --hero-b: #C9B8F0;
+  --code: rgba(0, 0, 0, 0.05);
+  --light-red: #FF5F57;
+  --light-yellow: #FEBC2E;
+  --light-green: #28C840;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --desk: linear-gradient(135deg, #1D2333 0%, #2A2024 55%, #1F1B2B 100%);
+    --win-tint: #232120;
+    --win-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 0 0.5px rgba(0, 0, 0, 0.9);
+    --page: #1C1C1E;
+    --page-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 1px 3px rgba(0, 0, 0, 0.4);
+    --text: rgba(255, 255, 255, 0.92);
+    --text2: rgba(255, 255, 255, 0.5);
+    --text3: rgba(255, 255, 255, 0.32);
+    --row-hover: rgba(255, 255, 255, 0.07);
+    --row-active: rgba(255, 255, 255, 0.1);
+    --row-active-shadow: 0 0.5px 1.5px rgba(0, 0, 0, 0.4);
+    --divider: rgba(255, 255, 255, 0.09);
+    --accent: #4A77D4;
+    --scrim: rgba(0, 0, 0, 0.45);
+    --peek-fill: #2A2827;
+    --peek-shadow: 0 21px 46px rgba(0, 0, 0, 0.66);
+    --outer-rim: rgba(0, 0, 0, 0.95);
+    --inner-rim: rgba(255, 255, 255, 0.1);
+    --field: rgba(255, 255, 255, 0.07);
+    --hero-a: #6B4A3A;
+    --hero-b: #43386B;
+    --code: rgba(255, 255, 255, 0.07);
+  }
+}
+:root[data-theme="dark"] {
+  --desk: linear-gradient(135deg, #1D2333 0%, #2A2024 55%, #1F1B2B 100%);
+  --win-tint: #232120;
+  --win-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 0 0.5px rgba(0, 0, 0, 0.9);
+  --page: #1C1C1E;
+  --page-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --text: rgba(255, 255, 255, 0.92);
+  --text2: rgba(255, 255, 255, 0.5);
+  --text3: rgba(255, 255, 255, 0.32);
+  --row-hover: rgba(255, 255, 255, 0.07);
+  --row-active: rgba(255, 255, 255, 0.1);
+  --row-active-shadow: 0 0.5px 1.5px rgba(0, 0, 0, 0.4);
+  --divider: rgba(255, 255, 255, 0.09);
+  --accent: #4A77D4;
+  --scrim: rgba(0, 0, 0, 0.45);
+  --peek-fill: #2A2827;
+  --peek-shadow: 0 21px 46px rgba(0, 0, 0, 0.66);
+  --outer-rim: rgba(0, 0, 0, 0.95);
+  --inner-rim: rgba(255, 255, 255, 0.1);
+  --field: rgba(255, 255, 255, 0.07);
+  --hero-a: #6B4A3A;
+  --hero-b: #43386B;
+  --code: rgba(255, 255, 255, 0.07);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--desk);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+#stage { position: fixed; inset: 0; }
+
+.win {
+  position: absolute;
+  inset: 20px 20px 84px 20px;
+  border-radius: 12px;
+  background: var(--win-tint);
+  box-shadow: var(--win-shadow);
+  display: flex;
+  overflow: hidden;
+  isolation: isolate;
+}
+.side {
+  width: 240px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 8px 10px 10px;
+  gap: 6px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.lights { display: flex; gap: 8px; height: 20px; align-items: center; padding-left: 4px; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; display: block; box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12); }
+.lights i:nth-child(1) { background: var(--light-red); }
+.lights i:nth-child(2) { background: var(--light-yellow); }
+.lights i:nth-child(3) { background: var(--light-green); }
+.url {
+  height: 34px;
+  border-radius: 10px;
+  background: var(--field);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  color: var(--text2);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.url b { color: var(--text); font-weight: 500; flex: none; }
+.url span:last-child { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.section-label { color: var(--text3); font-size: 11px; font-weight: 600; padding: 10px 8px 2px; letter-spacing: 0.02em; }
+.tabs { display: flex; flex-direction: column; gap: 2px; list-style: none; margin: 0; padding: 0; }
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tab span { overflow: hidden; text-overflow: ellipsis; }
+.tab:hover { background: var(--row-hover); }
+.tab[aria-current="page"] { background: var(--row-active); box-shadow: var(--row-active-shadow); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.fav {
+  width: 16px; height: 16px; border-radius: 4px; flex: none;
+  display: grid; place-items: center;
+  font-size: 9px; font-weight: 700; color: #fff;
+}
+.side-foot { margin-top: auto; color: var(--text3); font-size: 11px; line-height: 1.45; padding: 0 8px; }
+.side-foot kbd { font: inherit; padding: 0 4px; border-radius: 4px; background: var(--field); color: var(--text2); }
+
+.content {
+  position: relative;
+  flex: 1;
+  margin: 8px 8px 8px 0;
+  border-radius: 10px;
+  background: var(--page);
+  box-shadow: var(--page-shadow);
+  overflow: hidden;
+}
+.scroller { position: absolute; inset: 0; overflow: auto; }
+
+.pg { max-width: 680px; margin: 0 auto; padding: 44px 48px 120px; line-height: 1.6; font-size: 15px; }
+.pg .eyebrow { color: var(--text2); font-size: 12px; font-weight: 500; letter-spacing: 0.02em; display: flex; gap: 8px; align-items: center; }
+.pg h1 { font-size: 30px; line-height: 1.15; letter-spacing: -0.02em; margin: 10px 0 8px; font-weight: 700; }
+.pg .meta { color: var(--text2); font-size: 13px; margin-bottom: 22px; }
+.pg .hero { height: 180px; border-radius: 12px; margin: 0 0 26px; background: linear-gradient(120deg, var(--hero-a), var(--hero-b)); }
+.pg p { margin: 0 0 16px; }
+.pg h2 { font-size: 19px; margin: 30px 0 8px; letter-spacing: -0.01em; }
+.pg code { background: var(--code); border-radius: 4px; padding: 1px 5px; font-size: 13px; }
+.pg a[data-peek] { color: var(--accent); text-decoration: none; border-radius: 3px; cursor: pointer; box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 35%, transparent); }
+.pg a[data-peek]:hover { box-shadow: 0 1.5px 0 var(--accent); }
+.pg a[data-peek]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pg .note { border-left: 3px solid var(--divider); padding-left: 14px; color: var(--text2); }
+
+.layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.layer > * { pointer-events: auto; }
+.scrim { position: absolute; border-radius: 10px; background: var(--scrim); opacity: 0; }
+
+.pk {
+  position: absolute;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+  outline: none;
+}
+.pk-chrome {
+  position: absolute; inset: 0;
+  border-radius: 16px;
+  background: var(--peek-fill);
+  box-shadow: var(--peek-shadow), 0 0 0 0.5px var(--outer-rim), inset 0 0 0 0.5px var(--inner-rim);
+}
+.pk-bar {
+  position: absolute; left: 0; right: 0; top: 0; height: 40px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 6px 0 12px;
+  user-select: none; -webkit-user-select: none;
+}
+.pk-label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--text2); font-size: 13px; white-space: nowrap; overflow: hidden; }
+.pk-label b { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.ib {
+  position: relative;
+  width: 28px; height: 28px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--text2);
+  display: grid; place-items: center; flex: none;
+  cursor: default;
+}
+.ib::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--row-hover); opacity: 0; transition: opacity 120ms ease-out; }
+.ib:hover::before { opacity: 1; }
+.ib:active { transform: scale(0.94); }
+.ib:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.ib svg { position: relative; width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ib::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--accent); opacity: 0; transition: opacity 120ms ease-out; }
+.ib[data-armed]::after { opacity: 0.22; }
+.ib[data-armed] { color: var(--accent); }
+.pk-view {
+  position: absolute; left: 5px; right: 5px; top: 40px; bottom: 5px;
+  border-radius: 10px; overflow: hidden; background: var(--page);
+  box-shadow: var(--page-shadow);
+}
+.pk-sheet { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: auto; background: var(--page); }
+.pk-scroll { position: absolute; inset: 0; overflow: auto; }
+
+.pk.little .pk-bar { cursor: grab; height: 38px; padding: 0 5px 0 5px; gap: 2px; }
+.pk.little[data-dragging] .pk-bar { cursor: grabbing; }
+.pk.little .pk-view { top: 38px; }
+.lw-field {
+  flex: 1; min-width: 0; height: 26px; margin: 0 4px;
+  border-radius: 7px; background: var(--field);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  color: var(--text2); font-size: 12px; white-space: nowrap; overflow: hidden; padding: 0 8px;
+}
+.lw-field b { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.pk.little .pg { padding: 26px 26px 80px; font-size: 14px; }
+.pk.little .pg h1 { font-size: 23px; }
+.pk.little .pg .hero { height: 120px; }
+.copied-tip {
+  position: absolute; top: 34px; right: 30px;
+  padding: 4px 8px; border-radius: 6px;
+  background: var(--panel, var(--page)); color: var(--text); font-size: 11px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18), 0 0 0 0.5px var(--divider);
+  opacity: 0; transform: translateY(-2px); pointer-events: none;
+  transition: opacity 140ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.copied-tip[data-show] { opacity: 1; transform: none; }
+
+.gn-strips { position: absolute; inset: 0; pointer-events: none; }
+.gn-strip { position: absolute; transform-origin: 0 0; will-change: transform, opacity; }
+.pk.genie[data-animating] > .gn-face { opacity: 0; }
+.pk.genie:not([data-animating]) .gn-strips { display: none; }
+.gn-face { position: absolute; inset: 0; }
+.gn-strip .pk-chrome { box-shadow: 0 0 0 0.5px var(--outer-rim), inset 0 0 0 0.5px var(--inner-rim); }
+.gn-shadow { position: absolute; left: 0; top: 0; border-radius: 16px; box-shadow: var(--peek-shadow); transform-origin: 0 0; opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ib::before, .ib::after, .copied-tip { transition: none; }
+}
+
+.proto-picker {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(10, 10, 10, 0.82);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  backdrop-filter: blur(12px) saturate(1.4);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 8px 24px rgba(0, 0, 0, 0.24),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.proto-picker-highlight {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  will-change: transform;
+}
+.proto-picker[data-ready] .proto-picker-highlight {
+  transition:
+    transform 250ms cubic-bezier(0.23, 1, 0.32, 1),
+    width 250ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .proto-picker[data-ready] .proto-picker-highlight { transition: none; }
+}
+.proto-picker-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font: inherit;
+  cursor: pointer;
+  transition: color 150ms ease-out;
+}
+.proto-picker-item:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+.proto-picker-item:active {
+  transform: scale(0.97);
+}
+.proto-picker-item:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 2px;
+}
+.proto-picker-item[data-active] {
+  color: #fff;
+}
+.proto-picker-divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.proto-picker-replay {
+  padding: 0 10px;
+  font-size: 14px;
+}
+.proto-picker[data-position="top"] {
+  bottom: auto;
+  top: 24px;
+}
+</style>
+</head>
+<body>
+<main id="stage"></main>
+<nav class="proto-picker" aria-label="Prototype variants">
+  <span class="proto-picker-highlight" aria-hidden="true"></span>
+  <button class="proto-picker-item" data-active aria-current="true">Seamless</button>
+  <button class="proto-picker-item">Little Window</button>
+  <button class="proto-picker-item">Genie</button>
+  <span class="proto-picker-divider" aria-hidden="true"></span>
+  <button class="proto-picker-item proto-picker-replay" aria-label="Replay animation (R)">↻</button>
+</nav>
+<script>
+const PAGES = {
+  blog: {
+    host: "ardia.dev", path: "/blog/no-account", title: "Field notes: a browser without an account",
+    fav: "A", favBg: "#1F1F1F", meta: "Ardia team · 6 min read · November 2026",
+    body: `
+      <p>Ardia keeps everything on your Mac. There is no sign-in screen, no profile server, and no copy of your tabs anywhere we can read. That decision shaped almost every surface, and Peek is the clearest example of how.</p>
+      <p>When you open a link from a page, it lands in a floating card instead of a new tab. We borrowed the idea from <a data-peek="webkit" href="#">the view-transition notes the WebKit team published this spring</a>, which argue that continuity, not speed, is what makes a navigation feel instant.</p>
+      <h2>Why a card and not a tab</h2>
+      <p>Most links you open are glances: a definition, a changelog, a screenshot in an issue. A tab is a commitment, and the sidebar fills up with things you meant to close. A card is a question you can answer and dismiss.</p>
+      <p>The hard part is the moment a glance turns into reading. Pinch the card open and it becomes a tab, right where you were looking. We tuned that spring against <a data-peek="motion" href="#">the motion section of the platform guidelines</a> until the hand and the pixels agreed.</p>
+      <p class="note">Everything here runs on Chromium 157 through ArdiaCore. Nothing in Peek needs a network round-trip.</p>
+      <h2>What we measured</h2>
+      <p>We timed 400 promotions on an M4 Air. The median from release to first frame of the new tab was 11 ms, and no frame dropped at 120 Hz. The longest spring settles in 260 ms.</p>
+      <p>If you want the long version, <a data-peek="genie" href="#">there is a write-up on where the genie effect came from</a> and why we kept its row stagger.</p>
+      <p>Next up: Peek for split view, and keeping the card's scroll position when you send it to Little Ardia.</p>`,
+  },
+  issue: {
+    host: "tracker.ardia.dev", path: "/issues/1438", title: "Page starts under the status bar on iPhone 17",
+    fav: "#", favBg: "#2F7D4F", meta: "Opened by a contributor · 14 comments · closed",
+    body: `<p>On iPhone 17 the first paint puts the page 20 pt under the status bar, then it jumps down once the toolbar measures itself.</p><p>Repro: cold launch, open any pinned tab, watch the top edge. The fix reserves the bar height before first layout.</p><h2>Verified on</h2><p>iOS 26.1 on iPhone 17 and 17 Pro, simulator and device.</p>`,
+  },
+  release: {
+    host: "chromium.notes", path: "/157", title: "Chromium 157: what changed for embedders",
+    fav: "C", favBg: "#3C6FD8", meta: "Release notes · stable channel",
+    body: `<p>Chromium 157 moves the compositor's frame pacing onto the display link on macOS, which removes a frame of latency from scroll.</p><h2>Embedders</h2><p>The <code>content::WebContents</code> visibility API now reports occlusion directly, so hidden tabs can throttle without a polling timer.</p><p>View transitions gain cross-document support behind a flag.</p>`,
+  },
+  webkit: {
+    host: "webkit.notes", path: "/view-transitions", title: "Continuity is the feature",
+    fav: "W", favBg: "#2B8AE8", meta: "Engine notes · spring 2026",
+    body: `<p>A navigation that keeps its pixels in place reads as faster than one that is actually faster. We tested this with two builds: one painted 40 ms sooner, the other morphed the old page into the new one.</p><p>People picked the morph nine times out of ten, and described it as quicker.</p><h2>What carries over</h2><p>Position, scale and scroll offset are the three things the eye tracks. Change any of them abruptly and the new page feels like a different place, even when the content is the same.</p><h2>What doesn't need to</h2><p>Colour and chrome can crossfade. Nobody follows a toolbar with their eyes; they follow the paragraph they were reading.</p><p>The rest of this note walks through the cross-document API and the timing we settled on: 250 ms, ease-out, no overshoot.</p><p>For long pages, keep the scroll offset. Restarting at the top is the single most common complaint in our study.</p>`,
+  },
+  motion: {
+    host: "motion.guide", path: "/springs", title: "Motion that follows the hand",
+    fav: "M", favBg: "#E0613A", meta: "Interface guidelines · Motion",
+    body: `<p>When motion is driven by a gesture, it should track the gesture one to one, and hand off to a spring at the velocity the hand left it.</p><h2>Response and damping</h2><p>Describe a spring by how long it takes to respond and how much it overshoots, not by stiffness and mass. A response of 0.2 s with damping 0.9 feels decisive without bouncing.</p><h2>Thresholds</h2><p>A gesture that commits should commit past a clear point, and fall back cleanly before it. Never leave an element part-way.</p><p>Reduce motion means removing travel and scale, not removing feedback. Crossfade instead.</p>`,
+  },
+  genie: {
+    host: "fieldguide.design", path: "/genie", title: "Where the genie came from",
+    fav: "G", favBg: "#8A5BD6", meta: "Field Guide · history of interface motion",
+    body: `<p>The genie effect stretches a window into the place it came from, bending the edges into a funnel as it goes.</p><p>Its trick is that different rows of the window arrive at different times. The rows nearest the target lead on the way in and lag on the way out, so the shape reads as being pulled rather than scaled.</p><h2>Rows, not frames</h2><p>Modern takes split the surface into a small mesh and give each row its own critically damped spring. Three rows are enough for a convincing curve; more rows make it smoother.</p><h2>Direction</h2><p>The stagger flips depending on whether the source is above or below the window's centre, so the funnel always points at the thing you touched.</p><p>Used sparingly, it is the most legible way to say "this came from there."</p>`,
+  },
+};
+
+const SEED_TABS = [
+  { id: "t1", page: "blog" },
+  { id: "t2", page: "issue" },
+  { id: "t3", page: "release" },
+];
+
+const ICONS = {
+  expand: '<svg viewBox="0 0 16 16"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9"/></svg>',
+  close: '<svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  link: '<svg viewBox="0 0 16 16"><path d="M6.8 9.2a2.6 2.6 0 0 0 3.7 0l2.3-2.3a2.6 2.6 0 0 0-3.7-3.7l-.9.9M9.2 6.8a2.6 2.6 0 0 0-3.7 0L3.2 9.1a2.6 2.6 0 0 0 3.7 3.7l.9-.9"/></svg>',
+  check: '<svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg>',
+};
+
+const PINCH_OPEN_AT = 0.3;
+const PINCH_CLOSE_AT = -0.25;
+const SPREAD_TO_TAB = 0.4;
+const PINCH_QUIET_MS = 160;
+const DRAIN_QUIET_MS = 220;
+const REDUCED_MS = 150;
+const SETTLE_REMAINING = 0.004;
+
+const reduceQuery = matchMedia("(prefers-reduced-motion: reduce)");
+const reduced = () => reduceQuery.matches;
+const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeOut = (t) => 1 - Math.pow(1 - t, 4);
+const smoothstep = (t) => t * t * (3 - 2 * t);
+const remaining = (t, response) => {
+  if (t <= 0) return 1;
+  const w = (2 * Math.PI) / response;
+  return (1 + w * t) * Math.exp(-w * t);
+};
+const settleTime = (response) => {
+  let t = 0;
+  while (remaining(t, response) > SETTLE_REMAINING) t += 0.001;
+  return t;
+};
+const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+window.__peekLog = [];
+
+function favicon(page) {
+  return `<span class="fav" style="background:${page.favBg}" aria-hidden="true">${page.fav}</span>`;
+}
+
+function article(key) {
+  const p = PAGES[key];
+  return `<article class="pg" data-page="${key}">
+    <div class="eyebrow">${favicon(p)}<span>${p.host}${p.path}</span></div>
+    <h1>${escapeHtml(p.title)}</h1>
+    <div class="meta">${escapeHtml(p.meta)}</div>
+    <div class="hero" aria-hidden="true"></div>
+    ${p.body}
+  </article>`;
+}
+
+function shell(kind) {
+  return `<div class="win" data-kind="${kind}" data-peek="closed">
+    <aside class="side" aria-label="Sidebar">
+      <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="url" aria-live="polite"></div>
+      <div class="section-label">Today</div>
+      <ul class="tabs" role="list"></ul>
+      <div class="side-foot">Click a blue link to Peek. Pinch it (<kbd>⌃</kbd> + scroll) to open as a tab, pinch in to close, <kbd>Esc</kbd> closes.</div>
+    </aside>
+    <section class="content" aria-label="Page"><div class="scroller" tabindex="-1"></div></section>
+    <div class="layer"></div>
+  </div>`;
+}
+
+class Session {
+  constructor(stage, kind) {
+    this.stage = stage;
+    this.kind = kind;
+    this.win = stage.querySelector(".win");
+    this.side = this.win.querySelector(".side");
+    this.tabsEl = this.win.querySelector(".tabs");
+    this.urlEl = this.win.querySelector(".url");
+    this.content = this.win.querySelector(".content");
+    this.scroller = this.win.querySelector(".scroller");
+    this.layer = this.win.querySelector(".layer");
+    this.tabs = SEED_TABS.map((t) => ({ ...t }));
+    this.active = "t1";
+    this.seq = 0;
+    this.anims = new Set();
+    this.timeouts = new Set();
+    this.peek = null;
+    this.pinch = null;
+    this.draining = false;
+    this.drainTimer = 0;
+    this.alive = true;
+    this.motion = new MOTIONS[kind](this);
+    this.renderSidebar();
+    this.renderContent(0);
+    this.onClick = (e) => this.click(e);
+    this.onWheel = (e) => this.wheel(e);
+    this.onKey = (e) => this.key(e);
+    this.onResize = () => this.peek && this.dispose();
+    this.win.addEventListener("click", this.onClick);
+    this.win.addEventListener("wheel", this.onWheel, { passive: false });
+    document.addEventListener("keydown", this.onKey);
+    window.addEventListener("resize", this.onResize);
+    this.setPhase("closed");
+    this.later(320, () => {
+      const link = this.scroller.querySelector('a[data-peek="motion"]');
+      if (link && !this.peek) this.open(link);
+    });
+  }
+
+  destroy() {
+    this.alive = false;
+    this.anims.forEach((a) => a.stop());
+    this.timeouts.forEach((t) => clearTimeout(t));
+    this.anims.clear();
+    this.timeouts.clear();
+    document.removeEventListener("keydown", this.onKey);
+    window.removeEventListener("resize", this.onResize);
+  }
+
+  later(ms, fn) {
+    const id = setTimeout(() => {
+      this.timeouts.delete(id);
+      if (this.alive) fn();
+    }, ms);
+    this.timeouts.add(id);
+    return id;
+  }
+
+  cancelLater(id) {
+    clearTimeout(id);
+    this.timeouts.delete(id);
+  }
+
+  loop(step, done) {
+    const handle = { id: 0, start: performance.now(), stop: () => { cancelAnimationFrame(handle.id); this.anims.delete(handle); } };
+    const tick = (now) => {
+      if (!this.alive) return;
+      const finished = step((now - handle.start) / 1000);
+      if (finished) {
+        this.anims.delete(handle);
+        done && done();
+      } else handle.id = requestAnimationFrame(tick);
+    };
+    this.anims.add(handle);
+    handle.id = requestAnimationFrame(tick);
+    return handle;
+  }
+
+  tween(ms, frame, done, ease = easeOut) {
+    return this.loop((t) => {
+      const p = clamp((t * 1000) / ms);
+      frame(ease(p));
+      return p >= 1;
+    }, done);
+  }
+
+  spring(response, frame, done) {
+    const end = settleTime(response);
+    return this.loop((t) => {
+      if (t >= end) { frame(0); return true; }
+      frame(remaining(t, response));
+      return false;
+    }, done);
+  }
+
+  setPhase(phase) {
+    this.win.dataset.peek = phase;
+    window.__peekLog.push({ kind: this.kind, phase, t: performance.now() });
+  }
+
+  rect(el) {
+    const w = this.win.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    return { x: r.left - w.left, y: r.top - w.top, w: r.width, h: r.height };
+  }
+
+  contentRect() {
+    return { x: this.content.offsetLeft, y: this.content.offsetTop, w: this.content.offsetWidth, h: this.content.offsetHeight };
+  }
+
+  tab(id) {
+    return this.tabs.find((t) => t.id === id);
+  }
+
+  renderSidebar(enterId) {
+    const before = new Map();
+    this.tabsEl.querySelectorAll(".tab").forEach((el) => before.set(el.dataset.tab, el.getBoundingClientRect().top));
+    this.tabsEl.innerHTML = this.tabs.map((t) => {
+      const p = PAGES[t.page];
+      const current = t.id === this.active ? ' aria-current="page"' : "";
+      return `<li><button class="tab" data-tab="${t.id}"${current}>${favicon(p)}<span>${escapeHtml(p.title)}</span></button></li>`;
+    }).join("");
+    const page = PAGES[this.tab(this.active).page];
+    this.urlEl.innerHTML = `${favicon(page)}<b>${page.host}</b><span>${page.path}</span>`;
+    if (!enterId) return;
+    const entering = this.tabsEl.querySelector(`[data-tab="${enterId}"]`);
+    const shifts = [];
+    this.tabsEl.querySelectorAll(".tab").forEach((el) => {
+      const was = before.get(el.dataset.tab);
+      if (was !== undefined) shifts.push([el, was - el.getBoundingClientRect().top]);
+    });
+    this.enterRow(entering, shifts);
+  }
+
+  enterRow(row, shifts, delay = 0) {
+    const still = reduced();
+    row.style.opacity = "0";
+    if (!still) row.style.transform = "translateY(-6px) scale(0.97)";
+    shifts.forEach(([el, dy]) => !still && (el.style.transform = `translateY(${dy}px)`));
+    const run = () => this.tween(still ? REDUCED_MS : 200, (p) => {
+      row.style.opacity = String(p);
+      if (still) return;
+      row.style.transform = `translateY(${-6 * (1 - p)}px) scale(${lerp(0.97, 1, p)})`;
+      shifts.forEach(([el, dy]) => (el.style.transform = `translateY(${dy * (1 - p)}px)`));
+    }, () => {
+      row.style.transform = "";
+      shifts.forEach(([el]) => (el.style.transform = ""));
+    });
+    delay ? this.later(delay, run) : run();
+  }
+
+  renderContent(scrollTop, fade) {
+    this.scroller.innerHTML = article(this.tab(this.active).page);
+    this.scroller.scrollTop = scrollTop;
+    if (!fade) return;
+    this.scroller.style.opacity = "0";
+    this.tween(reduced() ? REDUCED_MS : 200, (p) => (this.scroller.style.opacity = String(p)), () => (this.scroller.style.opacity = ""));
+  }
+
+  click(e) {
+    const link = e.target.closest("a[data-peek]");
+    if (link && this.scroller.contains(link)) {
+      e.preventDefault();
+      return this.open(link);
+    }
+    const row = e.target.closest(".tab[data-tab]");
+    if (row) return this.switchTab(row.dataset.tab);
+  }
+
+  switchTab(id) {
+    if (this.peek) this.dispose();
+    if (id === this.active) return;
+    this.active = id;
+    this.renderSidebar();
+    this.renderContent(0);
+  }
+
+  open(link) {
+    if (this.peek) this.dispose();
+    this.peek = { page: link.dataset.peek, link, source: this.rect(link), id: ++this.seq };
+    this.motion.open(this.peek);
+  }
+
+  key(e) {
+    if (e.key === "Escape" && this.peek && !["closing", "promoting"].includes(this.win.dataset.peek)) {
+      e.preventDefault();
+      this.close();
+    }
+  }
+
+  close() {
+    if (!this.peek || ["closing", "promoting"].includes(this.win.dataset.peek)) return;
+    this.endPinch();
+    this.setPhase("closing");
+    this.motion.close(() => this.dispose(true));
+  }
+
+  promote(origin) {
+    if (!this.peek || ["closing", "promoting"].includes(this.win.dataset.peek)) return;
+    this.endPinch();
+    this.setPhase("promoting");
+    this.motion.promote(origin, (scrollTop, fade) => this.commit(scrollTop, fade));
+  }
+
+  commit(scrollTop, fade) {
+    const page = this.peek.page;
+    const id = "n" + ++this.seq;
+    this.tabs.unshift({ id, page });
+    this.active = id;
+    this.renderSidebar(id);
+    this.renderContent(scrollTop, fade);
+    return this.tabsEl.querySelector(`[data-tab="${id}"]`);
+  }
+
+  finishPromote() {
+    this.motion.teardown();
+    this.layer.innerHTML = "";
+    this.peek = null;
+    this.setPhase("promoted");
+    this.setPhase("closed");
+    this.scroller.focus({ preventScroll: true });
+  }
+
+  dispose(returnFocus) {
+    const link = this.peek && this.peek.link;
+    this.endPinch();
+    this.motion.teardown();
+    this.layer.innerHTML = "";
+    this.peek = null;
+    this.setPhase("closed");
+    if (returnFocus && link && link.isConnected) link.focus({ preventScroll: true });
+  }
+
+  armDrain() {
+    this.draining = true;
+    this.cancelLater(this.drainTimer);
+    this.drainTimer = this.later(DRAIN_QUIET_MS, () => (this.draining = false));
+  }
+
+  endPinch() {
+    if (!this.pinch) return;
+    this.cancelLater(this.pinch.timer);
+    this.pinch = null;
+    this.motion.arm(null);
+  }
+
+  wheel(e) {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    if (this.draining) return this.armDrain();
+    if (!this.peek) return;
+    const phase = this.win.dataset.peek;
+    if (phase === "closing" || phase === "promoting") return this.armDrain();
+    if (!this.pinch) {
+      const w = this.win.getBoundingClientRect();
+      this.pinch = { mag: 0, y: e.clientY - w.top, x: e.clientX - w.left, timer: 0, opening: phase === "opening" };
+      if (!reduced()) this.motion.pinchBegin(this.pinch);
+      this.setPhase("pinch");
+    }
+    const unit = e.deltaMode === 1 ? 16 : 1;
+    this.pinch.mag = clamp(this.pinch.mag - (e.deltaY * unit) / 100, -0.6, 0.8);
+    this.motion.arm(this.pinch.mag >= PINCH_OPEN_AT ? "open" : this.pinch.mag <= PINCH_CLOSE_AT ? "close" : null);
+    if (!reduced()) this.motion.pinchFollow(this.pinch.mag, this.pinch);
+    this.cancelLater(this.pinch.timer);
+    this.pinch.timer = this.later(PINCH_QUIET_MS, () => this.pinchEnd());
+  }
+
+  pinchEnd() {
+    const pinch = this.pinch;
+    if (!pinch) return;
+    this.pinch = null;
+    this.motion.arm(null);
+    if (pinch.mag >= PINCH_OPEN_AT) {
+      this.armDrain();
+      this.setPhase("open");
+      return this.promote({ y: pinch.y, x: pinch.x, pinch: true });
+    }
+    if (pinch.mag <= PINCH_CLOSE_AT) {
+      this.armDrain();
+      this.setPhase("open");
+      return this.close();
+    }
+    if (reduced()) return this.setPhase("open");
+    this.setPhase("settling");
+    this.motion.settle(() => this.alive && this.peek && this.setPhase("open"));
+  }
+}
+
+function peekButtons(withCopy) {
+  return `${withCopy ? `<button class="ib" data-act="copy" aria-label="Copy Link" title="Copy Link">${ICONS.link}</button>` : ""}
+    <button class="ib" data-act="promote" aria-label="Open as Tab" title="Open as Tab">${ICONS.expand}</button>
+    ${withCopy ? "" : `<button class="ib" data-act="close" aria-label="Close Peek" title="Close (Esc)">${ICONS.close}</button>`}`;
+}
+
+function wireButtons(s, el) {
+  el.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-act]");
+    if (!b) return;
+    e.stopPropagation();
+    if (b.dataset.act === "promote") {
+      const r = s.rect(b);
+      s.promote({ x: r.x + r.w / 2, y: r.y + r.h / 2, pinch: false });
+    } else if (b.dataset.act === "close") s.close();
+    else if (b.dataset.act === "copy") copyLink(s, b);
+  });
+}
+
+function copyLink(s, button) {
+  const p = PAGES[s.peek.page];
+  const url = `https://${p.host}${p.path}`;
+  const done = (ok) => {
+    if (!s.alive || !button.isConnected) return;
+    const tip = button.closest(".pk").querySelector(".copied-tip");
+    tip.textContent = ok ? "Copied" : "Couldn't copy";
+    tip.toggleAttribute("data-show", true);
+    button.setAttribute("aria-label", ok ? "Copied" : "Copy Link");
+    if (ok) button.innerHTML = ICONS.check;
+    s.later(1400, () => {
+      if (!button.isConnected) return;
+      tip.removeAttribute("data-show");
+      button.innerHTML = ICONS.link;
+      button.setAttribute("aria-label", "Copy Link");
+    });
+  };
+  const fallback = () => {
+    const area = document.createElement("textarea");
+    area.value = url;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch { ok = false; }
+    area.remove();
+    done(ok);
+  };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(url).then(() => done(true), fallback);
+  else fallback();
+}
+
+function armButton(card, outcome) {
+  if (!card) return;
+  const promote = card.querySelector('[data-act="promote"]');
+  const close = card.querySelector('[data-act="close"]');
+  promote && promote.toggleAttribute("data-armed", outcome === "open");
+  close && close.toggleAttribute("data-armed", outcome === "close");
+}
+
+function fadeIn(s, el, done) {
+  el.style.opacity = "0";
+  return s.tween(REDUCED_MS, (p) => (el.style.opacity = String(p)), done);
+}
+
+function fadeOut(s, el, done) {
+  const from = parseFloat(el.style.opacity || "1");
+  return s.tween(REDUCED_MS, (p) => (el.style.opacity = String(from * (1 - p))), done);
+}
+
+class SeamlessMotion {
+  constructor(s) { this.s = s; this.K = 0.86; }
+
+  open(peek) {
+    const s = this.s;
+    const W = s.contentRect();
+    const K = this.K;
+    const P = { w: Math.round(K * W.w + 10), h: Math.round(K * W.h + 45) };
+    P.x = Math.round(W.x + (W.w - P.w) / 2);
+    P.y = Math.round(W.y + (W.h - P.h) / 2);
+    this.W = W;
+    this.P = P;
+    const page = PAGES[peek.page];
+    s.layer.innerHTML = `<div class="scrim" style="left:${W.x}px;top:${W.y}px;width:${W.w}px;height:${W.h}px" aria-hidden="true"></div>
+      <div class="pk seamless" role="dialog" aria-label="Peek: ${page.host}" tabindex="-1" style="left:${P.x}px;top:${P.y}px;width:${P.w}px;height:${P.h}px">
+        <div class="pk-chrome"></div>
+        <div class="pk-bar">
+          <div class="pk-label">${favicon(page)}<span><b>Peek: ${page.host}</b></span></div>
+          ${peekButtons(false)}
+        </div>
+        <div class="pk-view" style="border-radius:${10 * K}px">
+          <div class="pk-sheet" style="width:${W.w}px;height:${W.h}px;transform:scale(${K})">${article(peek.page)}</div>
+        </div>
+      </div>`;
+    this.scrim = s.layer.querySelector(".scrim");
+    this.card = s.layer.querySelector(".pk");
+    this.chrome = this.card.querySelector(".pk-chrome");
+    this.bar = this.card.querySelector(".pk-bar");
+    this.view = this.card.querySelector(".pk-view");
+    this.sheet = this.card.querySelector(".pk-sheet");
+    this.scrim.addEventListener("click", () => s.close());
+    wireButtons(s, this.card);
+    const L = peek.source;
+    this.from = { x: L.x + L.w / 2, y: L.y + L.h / 2 };
+    this.center = { x: P.x + P.w / 2, y: P.y + P.h / 2 };
+    const m = 1 / K;
+    const vx = P.x + 5, vy = P.y + 40;
+    this.fullT = { m, tx: W.x - this.center.x - m * (vx - this.center.x), ty: W.y - this.center.y - m * (vy - this.center.y) };
+    this.a = 0;
+    this.st = 0;
+    s.setPhase("opening");
+    this.card.focus({ preventScroll: true });
+    if (reduced()) {
+      this.apply(true);
+      fadeIn(s, this.card);
+      fadeIn(s, this.scrim, () => s.peek && s.setPhase("open"));
+      return;
+    }
+    this.apply();
+    this.openAnim = s.tween(260, (p) => { this.a = p; this.apply(); }, () => {
+      this.openAnim = null;
+      if (s.win.dataset.peek === "opening") s.setPhase("open");
+    });
+  }
+
+  apply(still) {
+    if (still) {
+      this.card.style.transform = "none";
+      this.scrim.style.opacity = "1";
+      return;
+    }
+    const a = this.a, st = this.st;
+    const grow = lerp(0.12, 1, a);
+    let scale = grow, tx = (this.from.x - this.center.x) * (1 - a), ty = (this.from.y - this.center.y) * (1 - a), opacity = a < 0.35 ? a / 0.35 : 1;
+    if (st > 0) {
+      scale *= lerp(1, this.fullT.m, st);
+      tx += this.fullT.tx * st;
+      ty += this.fullT.ty * st;
+    } else if (st < 0) {
+      scale *= Math.max(0.6, 1 + st * 0.5);
+      opacity *= clamp(1 + st * 2.2);
+    }
+    this.card.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    this.card.style.opacity = String(opacity);
+    this.chrome.style.opacity = String(st > 0 ? clamp(1 - st * 1.4) : 1);
+    this.bar.style.opacity = String(st > 0 ? clamp(1 - st * 2) : 1);
+    this.scrim.style.opacity = String(Math.min(a, 1) * (st > 0 ? 1 - st : clamp(1 + st * 2)));
+  }
+
+  arm(outcome) { armButton(this.card, outcome); }
+
+  pinchBegin() {
+    this.settleAnim && this.settleAnim.stop();
+    this.settleAnim = null;
+  }
+
+  pinchFollow(mag) {
+    this.st = mag >= 0 ? clamp(mag / SPREAD_TO_TAB) : mag;
+    this.apply();
+  }
+
+  settle(done) {
+    const from = this.st;
+    this.settleAnim = this.s.spring(0.2, (r) => { this.st = from * r; this.apply(); }, () => { this.settleAnim = null; done(); });
+  }
+
+  promote(origin, commit) {
+    const s = this.s;
+    this.settleAnim && this.settleAnim.stop();
+    this.openAnim && this.openAnim.stop();
+    const scrollTop = this.sheet.scrollTop;
+    if (reduced()) {
+      commit(scrollTop, true);
+      fadeOut(s, this.card);
+      fadeOut(s, this.scrim, () => s.finishPromote());
+      return;
+    }
+    const a0 = this.a, s0 = this.st;
+    const end = () => { commit(scrollTop, false); s.finishPromote(); };
+    if (origin.pinch) {
+      s.spring(0.2, (r) => { this.a = lerp(1, a0, r); this.st = lerp(1, s0, r); this.apply(); }, end);
+    } else {
+      s.tween(240, (p) => { this.a = lerp(a0, 1, p); this.st = lerp(s0, 1, p); this.apply(); }, end);
+    }
+  }
+
+  close(done) {
+    const s = this.s;
+    this.settleAnim && this.settleAnim.stop();
+    this.openAnim && this.openAnim.stop();
+    if (reduced()) {
+      fadeOut(s, this.card);
+      fadeOut(s, this.scrim, done);
+      return;
+    }
+    const a0 = this.a, s0 = this.st;
+    s.tween(200, (p) => { this.a = a0 * (1 - p); this.st = s0 * (1 - p); this.apply(); }, done);
+  }
+
+  teardown() {
+    this.settleAnim && this.settleAnim.stop();
+    this.openAnim && this.openAnim.stop();
+    this.settleAnim = this.openAnim = null;
+    this.card = null;
+  }
+}
+
+class LittleMotion {
+  constructor(s) { this.s = s; }
+
+  open(peek) {
+    const s = this.s;
+    const W = s.contentRect();
+    const L = peek.source;
+    const w = Math.round(Math.min(440, W.w * 0.48));
+    const h = Math.round(Math.min(560, W.h - 48));
+    const roomRight = W.x + W.w - (L.x + L.w);
+    const right = roomRight >= w + 24 || roomRight > L.x - W.x;
+    let x = right ? Math.min(L.x + L.w + 16, W.x + W.w - w - 16) : Math.max(L.x - w - 16, W.x + 16);
+    x = clamp(x, W.x + 16, W.x + W.w - w - 16);
+    const y = clamp(L.y - 64, W.y + 16, W.y + W.h - h - 16);
+    this.base = { x, y, w, h };
+    this.dx = 0;
+    this.dy = 0;
+    this.ox = right ? 0 : w;
+    this.oy = Math.round(clamp((L.y + L.h / 2 - y) / h, 0, 1) * h);
+    const page = PAGES[peek.page];
+    s.layer.innerHTML = `<div class="pk little" role="dialog" aria-label="Little window: ${page.host}" tabindex="-1" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;transform-origin:${this.ox}px ${this.oy}px">
+        <div class="pk-chrome"></div>
+        <div class="pk-bar">
+          <button class="ib" data-act="close" aria-label="Close Peek" title="Close (Esc)">${ICONS.close}</button>
+          <div class="lw-field">${favicon(page)}<b>${page.host}</b></div>
+          ${peekButtons(true)}
+        </div>
+        <div class="pk-view"><div class="pk-scroll">${article(peek.page)}</div></div>
+        <div class="copied-tip" role="status"></div>
+      </div>`;
+    this.card = s.layer.querySelector(".pk");
+    this.scrollEl = this.card.querySelector(".pk-scroll");
+    wireButtons(s, this.card);
+    this.wireDrag();
+    this.a = 0;
+    this.st = 0;
+    s.setPhase("opening");
+    this.card.focus({ preventScroll: true });
+    if (reduced()) {
+      this.card.style.transform = "none";
+      fadeIn(s, this.card, () => s.peek && s.setPhase("open"));
+      return;
+    }
+    this.apply();
+    this.openAnim = s.tween(200, (p) => { this.a = p; this.apply(); }, () => {
+      this.openAnim = null;
+      if (s.win.dataset.peek === "opening") s.setPhase("open");
+    });
+  }
+
+  wireDrag() {
+    const s = this.s;
+    const bar = this.card.querySelector(".pk-bar");
+    bar.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || e.target.closest("button")) return;
+      const startX = e.clientX - this.dx, startY = e.clientY - this.dy;
+      const W = s.contentRect();
+      const winW = s.win.clientWidth, winH = s.win.clientHeight;
+      bar.setPointerCapture(e.pointerId);
+      this.card.toggleAttribute("data-dragging", true);
+      const move = (ev) => {
+        this.dx = clamp(ev.clientX - startX, 8 - this.base.x, winW - 8 - this.base.w - this.base.x);
+        this.dy = clamp(ev.clientY - startY, W.y - this.base.y, winH - 8 - this.base.h - this.base.y);
+        this.apply();
+      };
+      const up = () => {
+        bar.removeEventListener("pointermove", move);
+        bar.removeEventListener("pointerup", up);
+        bar.removeEventListener("pointercancel", up);
+        this.card && this.card.removeAttribute("data-dragging");
+      };
+      bar.addEventListener("pointermove", move);
+      bar.addEventListener("pointerup", up);
+      bar.addEventListener("pointercancel", up);
+    });
+  }
+
+  apply() {
+    if (!this.card) return;
+    if (reduced() && !this.flight) {
+      this.card.style.transform = `translate(${this.dx}px, ${this.dy}px)`;
+      return;
+    }
+    if (this.flight) {
+      const f = this.flight;
+      this.card.style.transform = `translate(${f.tx}px, ${f.ty}px) scale(${f.sx}, ${f.sy})`;
+      this.card.style.opacity = String(f.o);
+      return;
+    }
+    const a = this.a, st = this.st;
+    let scale = lerp(0.94, 1, a), opacity = a;
+    if (st > 0) scale *= 1 + 0.05 * st;
+    else if (st < 0) { scale *= Math.max(0.6, 1 + st); opacity *= clamp(1 + st * 2.4); }
+    this.card.style.transform = `translate(${this.dx}px, ${this.dy + (1 - a) * 6}px) scale(${scale})`;
+    this.card.style.opacity = String(opacity);
+  }
+
+  arm(outcome) { armButton(this.card, outcome); }
+
+  pinchBegin() {
+    this.settleAnim && this.settleAnim.stop();
+    this.settleAnim = null;
+  }
+
+  pinchFollow(mag) {
+    this.st = mag >= 0 ? clamp(mag / SPREAD_TO_TAB) : mag;
+    this.apply();
+  }
+
+  settle(done) {
+    const from = this.st;
+    this.settleAnim = this.s.spring(0.2, (r) => { this.st = from * r; this.apply(); }, () => { this.settleAnim = null; done(); });
+  }
+
+  promote(origin, commit) {
+    const s = this.s;
+    this.settleAnim && this.settleAnim.stop();
+    this.openAnim && this.openAnim.stop();
+    const row = commit(0, true);
+    if (reduced()) {
+      fadeOut(s, this.card, () => s.finishPromote());
+      return;
+    }
+    const r = s.rect(row);
+    const b = this.base;
+    this.card.style.transformOrigin = "0 0";
+    const k = lerp(0.94, 1, this.a) * (this.st > 0 ? 1 + 0.05 * this.st : Math.max(0.6, 1 + this.st));
+    const start = { tx: this.dx + this.ox * (1 - k), ty: this.dy + (1 - this.a) * 6 + this.oy * (1 - k) };
+    const end = { tx: r.x - b.x, ty: r.y - b.y, sx: r.w / b.w, sy: r.h / b.h };
+    const o0 = parseFloat(this.card.style.opacity || "1");
+    s.tween(240, (p) => {
+      this.flight = {
+        tx: lerp(start.tx, end.tx, p),
+        ty: lerp(start.ty, end.ty, p),
+        sx: lerp(k, end.sx, p),
+        sy: lerp(k, end.sy, p),
+        o: o0 * clamp(1 - (p - 0.3) / 0.6),
+      };
+      this.apply();
+    }, () => { this.flight = null; s.finishPromote(); });
+  }
+
+  close(done) {
+    const s = this.s;
+    this.settleAnim && this.settleAnim.stop();
+    this.openAnim && this.openAnim.stop();
+    if (reduced()) return fadeOut(s, this.card, done);
+    const a0 = this.a;
+    s.tween(160, (p) => { this.a = a0 * (1 - p); this.apply(); }, done);
+  }
+
+  teardown() {
+    this.settleAnim && this.settleAnim.stop();
+    this.openAnim && this.openAnim.stop();
+    this.settleAnim = this.openAnim = null;
+    this.flight = null;
+    this.card = null;
+  }
+}
+
+class GenieMotion {
+  constructor(s) { this.s = s; this.N = 28; this.base = 0.17; }
+
+  open(peek) {
+    const s = this.s;
+    const W = s.contentRect();
+    const ix = Math.max(16, Math.round(W.w * 0.055)), iy = Math.max(16, Math.round(W.h * 0.055));
+    const P = { x: W.x + ix, y: W.y + iy, w: W.w - 2 * ix, h: W.h - 2 * iy };
+    this.W = W;
+    this.P = P;
+    this.S = peek.source;
+    const page = PAGES[peek.page];
+    s.layer.innerHTML = `<div class="scrim" style="left:${W.x}px;top:${W.y}px;width:${W.w}px;height:${W.h}px" aria-hidden="true"></div>
+      <div class="pk genie" role="dialog" aria-label="Peek: ${page.host}" tabindex="-1" style="left:${P.x}px;top:${P.y}px;width:${P.w}px;height:${P.h}px;transform-origin:0 0">
+        <div class="gn-face">
+          <div class="pk-chrome"></div>
+          <div class="pk-bar">
+            <div class="pk-label">${favicon(page)}<span><b>Peek: ${page.host}</b></span></div>
+            ${peekButtons(false)}
+          </div>
+          <div class="pk-view"><div class="pk-scroll">${article(peek.page)}</div></div>
+        </div>
+        <div class="gn-strips" aria-hidden="true"></div>
+      </div>`;
+    this.scrim = s.layer.querySelector(".scrim");
+    this.card = s.layer.querySelector(".pk");
+    this.face = this.card.querySelector(".gn-face");
+    this.stripsEl = this.card.querySelector(".gn-strips");
+    this.scrollEl = this.card.querySelector(".pk-scroll");
+    this.scrim.addEventListener("click", () => s.close());
+    wireButtons(s, this.card);
+    this.fading = false;
+    this.away = new Array(this.N).fill(1);
+    this.stretch = new Array(this.N).fill(0);
+    s.setPhase("opening");
+    this.card.focus({ preventScroll: true });
+    if (reduced()) {
+      fadeIn(s, this.card);
+      this.scrim.style.opacity = "0";
+      fadeIn(s, this.scrim, () => s.peek && s.setPhase("open"));
+      return;
+    }
+    this.buildStrips();
+    const rows = this.responses(this.S.y + this.S.h / 2, "open");
+    this.apply();
+    this.openAnim = this.rowsTo(this.away, 0, rows, () => {
+      this.openAnim = null;
+      if (!s.pinch) this.rest();
+      if (s.win.dataset.peek === "opening") s.setPhase("open");
+    });
+  }
+
+  responses(anchorY, mode) {
+    const P = this.P;
+    return Array.from({ length: this.N }, (_, r) => {
+      const cy = P.y + ((r + 0.5) / this.N) * P.h;
+      const dist = clamp(Math.abs(cy - anchorY) / P.h);
+      const lead = mode === "open" ? 1 - dist : dist;
+      return this.base * (0.7 + 0.6 * lead);
+    });
+  }
+
+  buildStrips() {
+    const N = this.N;
+    const st = this.scrollEl.scrollTop;
+    this.stripsEl.innerHTML = '<div class="gn-shadow"></div>';
+    this.shadow = this.stripsEl.firstElementChild;
+    this.shadow.style.width = `${this.P.w}px`;
+    this.shadow.style.height = `${this.P.h}px`;
+    this.strips = [];
+    for (let r = 0; r < N; r++) {
+      const clone = this.face.cloneNode(true);
+      clone.classList.add("gn-strip");
+      clone.classList.remove("gn-face");
+      clone.style.inset = "0";
+      const top = r === 0 ? "0px" : `calc(${(r / N) * 100}% - 0.5px)`;
+      const bottom = r === N - 1 ? "0px" : `calc(${100 - ((r + 1) / N) * 100}% - 0.5px)`;
+      clone.style.clipPath = `inset(${top} 0 ${bottom} 0)`;
+      const scroll = clone.querySelector(".pk-scroll");
+      scroll.style.overflow = "hidden";
+      scroll.firstElementChild.style.transform = `translateY(${-st}px)`;
+      clone.querySelectorAll("button").forEach((b) => b.setAttribute("tabindex", "-1"));
+      this.stripsEl.appendChild(clone);
+      this.strips.push(clone);
+    }
+    this.card.toggleAttribute("data-animating", true);
+  }
+
+  rest() {
+    if (!this.card) return;
+    this.card.removeAttribute("data-animating");
+    this.stripsEl.innerHTML = "";
+    this.strips = null;
+    this.shadow = null;
+    this.fading = false;
+  }
+
+  apply() {
+    if (!this.strips) return;
+    const { P, S, W, N } = this;
+    let awaySum = 0, stretchSum = 0, maxAway = 0, minX = Infinity, maxR = -Infinity, topY = 0, bottomY = 0;
+    const edge = (k) => {
+      const lo = Math.max(0, k - 1), hi = Math.min(N - 1, k);
+      const a = (this.away[lo] + this.away[hi]) / 2, st = (this.stretch[lo] + this.stretch[hi]) / 2, f = k / N;
+      return lerp(lerp(P.y + f * P.h, W.y + f * W.h, st), S.y + f * S.h, a);
+    };
+    const edges = Array.from({ length: N + 1 }, (_, k) => edge(k));
+    for (let r = 0; r < N; r++) {
+      const a = this.away[r], st = this.stretch[r];
+      const fa = r / N, fb = (r + 1) / N;
+      const x = lerp(lerp(P.x, W.x, st), S.x, a), w = lerp(lerp(P.w, W.w, st), S.w, a);
+      const y0 = edges[r], y1 = edges[r + 1];
+      const sx = w / P.w, sy = (y1 - y0) / ((fb - fa) * P.h);
+      const tx = x - P.x, ty = y0 - P.y - sy * fa * P.h;
+      const el = this.strips[r];
+      el.style.transform = `translate(${tx}px, ${ty}px) scale(${sx}, ${sy})`;
+      el.style.opacity = String(this.fading ? smoothstep(clamp((1 - a) / 0.4)) : clamp((1 - a) / 0.12));
+      awaySum += a;
+      maxAway = Math.max(maxAway, a);
+      minX = Math.min(minX, x);
+      maxR = Math.max(maxR, x + w);
+      if (r === 0) topY = y0;
+      if (r === N - 1) bottomY = y1;
+      stretchSum += st;
+    }
+    const meanAway = awaySum / N, meanStretch = stretchSum / N;
+    if (this.shadow) {
+      this.shadow.style.transform = `translate(${minX - P.x}px, ${topY - P.y}px) scale(${(maxR - minX) / P.w}, ${(bottomY - topY) / P.h})`;
+      this.shadow.style.opacity = String(Math.pow(1 - maxAway, 3));
+    }
+    this.scrim.style.opacity = String((1 - meanAway) * (1 - meanStretch));
+  }
+
+  rowsTo(values, target, responses, done) {
+    const from = values.slice();
+    const end = Math.max(...responses.map(settleTime));
+    return this.s.loop((t) => {
+      for (let r = 0; r < this.N; r++) values[r] = target + (from[r] - target) * (t >= end ? 0 : remaining(t, responses[r]));
+      this.apply();
+      return t >= end;
+    }, done);
+  }
+
+  arm(outcome) { armButton(this.card ? this.face : null, outcome); }
+
+  pinchBegin(pinch) {
+    this.settleAnim && this.settleAnim.stop();
+    this.settleAnim = null;
+    if (!this.strips) this.buildStrips();
+    this.pinchBase = this.away.slice();
+    this.closeRows = this.responses(this.S.y + this.S.h / 2, "close");
+    this.fading = true;
+    this.spreadRows = this.responses(pinch.y, "open");
+  }
+
+  pinchFollow(mag) {
+    if (!this.strips) return;
+    const minClose = Math.min(...this.closeRows), minSpread = Math.min(...this.spreadRows);
+    for (let r = 0; r < this.N; r++) {
+      if (mag < 0) {
+        const u = clamp(-mag / 0.4);
+        this.stretch[r] = 0;
+        this.away[r] = Math.max(this.pinchBase[r], clamp(u * (minClose / this.closeRows[r])) * 0.6);
+      } else {
+        const u = clamp(mag / SPREAD_TO_TAB);
+        this.stretch[r] = clamp(u * (minSpread / this.spreadRows[r]) * 0.9);
+      }
+    }
+    if (this.openAnim && mag >= 0) return;
+    if (this.openAnim) { this.openAnim.stop(); this.openAnim = null; }
+    this.apply();
+  }
+
+  settle(done) {
+    const rows = this.closeRows || this.responses(this.P.y, "open");
+    const finish = () => { this.settleAnim = null; this.rest(); done(); };
+    if (this.openAnim) { this.openAnim.stop(); this.openAnim = null; }
+    let pending = 2;
+    const both = () => --pending === 0 && finish();
+    this.settleAnim = this.rowsTo(this.away, 0, rows, both);
+    const second = this.rowsTo(this.stretch, 0, rows, both);
+    const stopBoth = this.settleAnim.stop;
+    this.settleAnim.stop = () => { stopBoth(); second.stop(); };
+  }
+
+  promote(origin, commit) {
+    const s = this.s;
+    this.settleAnim && this.settleAnim.stop();
+    if (this.openAnim) { this.openAnim.stop(); this.openAnim = null; }
+    const scrollTop = this.scrollEl.scrollTop;
+    if (reduced()) {
+      commit(scrollTop, true);
+      fadeOut(s, this.card);
+      fadeOut(s, this.scrim, () => s.finishPromote());
+      return;
+    }
+    if (!this.strips) this.buildStrips();
+    const rows = this.responses(origin.y, "open").map((r) => r * 0.9);
+    let committed = false;
+    const from = this.stretch.slice(), awayFrom = this.away.slice();
+    const end = Math.max(...rows.map(settleTime));
+    s.loop((t) => {
+      let least = 1;
+      for (let r = 0; r < this.N; r++) {
+        const k = t >= end ? 0 : remaining(t, rows[r]);
+        this.stretch[r] = 1 + (from[r] - 1) * k;
+        this.away[r] = awayFrom[r] * k;
+        least = Math.min(least, this.stretch[r]);
+      }
+      this.apply();
+      if (!committed && least >= 0.85) {
+        committed = true;
+        commit(scrollTop, false);
+        this.fadeFrom = t;
+      }
+      if (committed) this.stripsEl.style.opacity = String(clamp(1 - (t - this.fadeFrom) / 0.1));
+      return t >= end;
+    }, () => {
+      if (!committed) commit(scrollTop, false);
+      s.finishPromote();
+    });
+  }
+
+  close(done) {
+    const s = this.s;
+    this.settleAnim && this.settleAnim.stop();
+    if (this.openAnim) { this.openAnim.stop(); this.openAnim = null; }
+    if (reduced()) {
+      fadeOut(s, this.card);
+      fadeOut(s, this.scrim, done);
+      return;
+    }
+    if (!this.strips) this.buildStrips();
+    const rows = this.responses(this.S.y + this.S.h / 2, "close");
+    this.fading = true;
+    let pending = 2;
+    const both = () => --pending === 0 && done();
+    this.rowsTo(this.away, 1, rows, both);
+    this.rowsTo(this.stretch, 0, rows, both);
+  }
+
+  teardown() {
+    this.settleAnim && this.settleAnim.stop();
+    this.openAnim && this.openAnim.stop();
+    this.settleAnim = this.openAnim = null;
+    this.strips = null;
+    this.card = null;
+    this.face = null;
+  }
+}
+
+const MOTIONS = { seamless: SeamlessMotion, little: LittleMotion, genie: GenieMotion };
+const KINDS = ["seamless", "little", "genie"];
+let session = null;
+
+const variants = KINDS.map((kind) => () => shell(kind));
+const stage = document.getElementById('stage');
+const picker = document.querySelector('.proto-picker');
+const highlight = picker.querySelector('.proto-picker-highlight');
+const items = [...picker.querySelectorAll('.proto-picker-item:not(.proto-picker-replay)')];
+const replay = picker.querySelector('.proto-picker-replay');
+let current = 0;
+
+function moveHighlight() {
+  const el = items[current];
+  highlight.style.width = el.offsetWidth + 'px';
+  highlight.style.transform = `translateX(${el.offsetLeft}px)`;
+}
+
+function mount(i) {
+  session && session.destroy();
+  session = null;
+  stage.innerHTML = '';
+  requestAnimationFrame(() => {
+    stage.innerHTML = variants[i]();
+    session = new Session(stage, KINDS[i]);
+  });
+}
+
+function setActive(i) {
+  if (i < 0 || i >= variants.length) return;
+  current = i;
+  items.forEach((el, j) => {
+    el.toggleAttribute('data-active', j === i);
+    if (j === i) el.setAttribute('aria-current', 'true');
+    else el.removeAttribute('aria-current');
+  });
+  moveHighlight();
+  const url = new URL(location);
+  url.searchParams.set('v', i + 1);
+  history.replaceState(null, '', url);
+  mount(i);
+}
+
+items.forEach((el, i) => el.addEventListener('click', () => setActive(i)));
+replay?.addEventListener('click', () => mount(current));
+window.addEventListener('resize', moveHighlight);
+
+document.addEventListener('keydown', (e) => {
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const num = parseInt(e.key, 10);
+  if (num >= 1 && num <= variants.length) setActive(num - 1);
+  else if (e.key === 'ArrowRight') setActive((current + 1) % variants.length);
+  else if (e.key === 'ArrowLeft') setActive((current - 1 + variants.length) % variants.length);
+  else if (e.key === 'r' || e.key === 'R') mount(current);
+});
+
+setActive((parseInt(new URLSearchParams(location.search).get('v'), 10) || 1) - 1);
+requestAnimationFrame(() => requestAnimationFrame(() => picker.setAttribute('data-ready', '')));
+</script>
+</body>
+</html>

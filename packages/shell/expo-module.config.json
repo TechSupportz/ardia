@@ -16,6 +16,7 @@
       "ContextMenuAreaModule",
       "OutsidePressAreaModule",
       "MagnifyAreaModule",
+      "PeekStageModule",
       "SurfaceModule",
       "VisualEffectModule",
       "GlassEffectModule",

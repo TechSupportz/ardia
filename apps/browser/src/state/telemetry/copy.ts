@@ -81,6 +81,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times two sidebar animations started in the same moment and were run together, summed up once an hour",
       "How many times a page open in WebKit was kept out of sight while it waited, ready, to be switched to: the open tab of a neighbouring profile, or the tab that takes over while you drag one away. Summed up once an hour, never which page",
       "How many Peek cards and Little Ardia windows you opened or closed with a trackpad pinch, how many Little Ardia windows you closed by swiping back or started to and let go, summed up once an hour",
+      "How many Peek cards opened with the Genie warp, the plain zoom or a fade, how often the warp wasn't available, how often a page took too long to draw before its card opened, how often you caught a card while it was still opening, and how many cards you closed or opened as tabs, summed up once an hour",
       "How many Little Ardia windows you closed with Escape, and whether the page had the keyboard, nothing in the window did, or the window was still blank, summed up once an hour",
       "How many links from other apps opened as a tab or in Little Ardia, each with whether Settings › General › Open links from other apps in Little Ardia was on, summed up once an hour. Never which links or which app",
       "How many tab and group changes the ardia command made (counts only, never which tabs or groups), how many of its batches were refused or stopped, and how many times its control pill appeared",

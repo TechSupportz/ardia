@@ -404,6 +404,7 @@ export const shellNativeModules: Modules = {
   ArdiaInlineCompletion: { complete: () => Promise.resolve(0) },
   ArdiaTranslate: translate,
   ArdiaMagnifyArea: magnifyArea,
+  ArdiaPeekStage: { devState: () => Promise.resolve([]), devPageFrames: () => Promise.resolve([]) },
   ArdiaFileDrop: fileDrop,
   ArdiaCli: cli,
   ArdiaUserScripts: userScripts,

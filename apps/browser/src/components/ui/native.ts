@@ -5,6 +5,7 @@ export {
   FadeLabel,
   FileDropArea,
   MagnifyArea,
+  PeekStage,
   MouseArea,
   OutsidePressArea,
   PopoverBubble,
@@ -17,6 +18,9 @@ export {
   type DroppedItem,
   type DropUpdate,
   type MagnifyUpdate,
+  type PeekStageGeometry,
+  type PeekStageHandle,
+  type PeekStageState,
   type SurfaceProps,
   type SymbolProps,
 } from "@ardia/shell";

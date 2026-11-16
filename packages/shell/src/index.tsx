@@ -23,5 +23,6 @@ export * from "./translation";
 export * from "./updater";
 export * from "./userScripts";
 export * from "./views";
+export * from "./peekStage";
 export * from "./windows";
 export { nativeModule, type ShellNativeModules } from "./nativeModules";

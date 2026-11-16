@@ -1,28 +1,24 @@
 import { breadcrumb } from "@ardia/core";
-import { WindowBackdrop, ink, Panel, PinchArea, pinchFollow, pinchSettle, reduceMotion, reduceMotionKnown, type PinchMotion } from "../ui";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { WindowBackdrop, ink, Panel, PeekStage, reduceMotion, reduceMotionKnown, type PeekStageHandle, type PeekStageState } from "../ui";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useCardFrame } from "../window/cardFrame";
 import { usePeekSplitFull, usePeeks } from "../../state/peek/hooks";
+import { usePeekDonors } from "../../state/peek/donors";
 import { useSettings, useTab } from "../../state/browser/hooks";
 import type { Peek } from "../../state/peek/peek";
-import { PEEK_MOTION, PEEK_SCRIM } from "./tokens";
+import { PEEK_SCRIM } from "./tokens";
 import { PageLabel, SMALL_INSET, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS, SmallBar } from "../littleArdia/SmallChrome";
-import { dismissPeek, finishPeek, openPeekAsTab, openPeekInSplit, registerPeekMotion } from "../../state/peek/actions";
+import { dismissPeek, finishPeek, openPeekAsTab, openPeekInSplit, promotePeekNow, registerPeekMotion } from "../../state/peek/actions";
 import { notePinch } from "../../state/telemetry/usage";
+import { notePeekDone, notePeekEntrance, notePeekInterrupt } from "../../state/telemetry/peekMotion";
+import { peekGeometry } from "./peekGeometry";
+import { usePeekPageTop } from "./usePeekPageTop";
+import { SMALL_BAR_HEIGHT } from "../../state/windows/small";
+import { switchOn } from "../../state/app/switches";
 
-const INSET_FRACTION = 0.055;
-const MIN_INSET = 16;
-const START_SCALE = 0.12;
-const GROW = PEEK_MOTION.grow;
-
-
-export function peekFrame(width: number, height: number) {
-  const x = Math.max(MIN_INSET, Math.round(width * INSET_FRACTION));
-  const y = Math.max(MIN_INSET, Math.round(height * INSET_FRACTION));
-  return { left: x, top: y, width: Math.max(0, width - 2 * x), height: Math.max(0, height - 2 * y) };
-}
+let generations = 0;
 
 export function PeekOverlay({
   windowId,
@@ -39,14 +35,19 @@ export function PeekOverlay({
   fullscreen: boolean;
   page: (tabId: string, sourceId: string, width: number) => ReactNode;
 }) {
-  const peek = usePeeks((p) => p[windowId]);
+  const live = usePeeks((p) => p[windowId]);
+  const donor = usePeekDonors((d) => d[windowId]);
+  const last = useRef<Peek | null>(null);
+  if (live) last.current = live;
+  const peek = live ?? (donor && last.current?.tabId === donor.tabId ? last.current : null);
   if (!peek || width <= 0 || height <= 0) return null;
-  return <PeekCard key={peek.tabId} windowId={windowId} peek={peek} width={width} height={height} origin={origin} fullscreen={fullscreen} page={page} />;
+  return <PeekCard key={peek.tabId} windowId={windowId} peek={peek} donor={!live} width={width} height={height} origin={origin} fullscreen={fullscreen} page={page} />;
 }
 
 function PeekCard({
   windowId,
   peek,
+  donor,
   width,
   height,
   origin,
@@ -55,6 +56,7 @@ function PeekCard({
 }: {
   windowId: string;
   peek: Peek;
+  donor: boolean;
   width: number;
   height: number;
   origin: { x: number; y: number } | null;
@@ -64,135 +66,101 @@ function PeekCard({
   const theme = useTheme();
   const card = useCardFrame();
   const windowFrame = theme.dark ? SMALL_WINDOW_FRAME.dark : SMALL_WINDOW_FRAME.light;
-  const frame = peekFrame(width, height);
-  const [motion, setMotion] = useState<"fade" | "grow" | null>(() => {
-    const reduce = reduceMotion();
-    return reduce === null ? null : reduce ? "fade" : "grow";
-  });
-  const fade = motion === "fade";
-  const [progress] = useState(() => new Animated.Value(0));
-  const [expand] = useState(() => new Animated.Value(0));
-  const leaving = useRef<"close" | "expand" | null>(null);
-
-  const centerX = frame.left + frame.width / 2;
-  const centerY = frame.top + frame.height / 2;
-  const fromX = peek.from && origin ? Math.min(Math.max(peek.from.x - origin.x, 0), width) : centerX;
-  const fromY = peek.from && origin ? Math.min(Math.max(peek.from.y - origin.y, 0), height) : centerY;
+  const [reduce, setReduce] = useState<boolean | null>(() => reduceMotion());
+  const [generation] = useState(() => ++generations);
+  const stage = useRef<PeekStageHandle>(null);
+  const seen = useRef({ entered: false, interrupted: false, done: false });
+  const gestures = useSettings((s) => s.littleWindowGestures);
+  const [meshAllowed] = useState(() => switchOn("peekGenie"));
+  const pageTop = usePeekPageTop(windowId, peek.tabId);
+  const fromX = peek.from && origin ? peek.from.x - origin.x : null;
+  const fromY = peek.from && origin ? peek.from.y - origin.y : null;
+  const geometry = useMemo(
+    () =>
+      peekGeometry({
+        width,
+        height,
+        pageTop,
+        bar: SMALL_BAR_HEIGHT,
+        inset: card.inset,
+        restRadius: card.radius,
+        paneRadius: card.radius,
+        from: fromX === null || fromY === null ? null : { x: fromX, y: fromY },
+        fullscreen,
+      }),
+    [width, height, pageTop, card.inset, card.radius, fromX, fromY, fullscreen],
+  );
 
   useEffect(() => {
-    if (motion) return;
+    if (reduce !== null) return;
     let live = true;
-    void reduceMotionKnown.then((reduce) => live && setMotion(reduce ? "fade" : "grow"));
+    void reduceMotionKnown.then((value) => live && setReduce(value));
     return () => void (live = false);
   }, []);
 
+  const known = reduce !== null;
   useEffect(() => {
-    if (!motion) return;
-    const grow = fade
-      ? Animated.timing(progress, { toValue: 1, ...PEEK_MOTION.fadeIn, useNativeDriver: true })
-      : Animated.spring(progress, { toValue: 1, ...GROW, overshootClamping: true, restDisplacementThreshold: 0.001, restSpeedThreshold: 0.01, useNativeDriver: true });
-    grow.start();
-    const close = () => {
-      if (leaving.current) return;
-      leaving.current = "close";
-      progress.stopAnimation();
-      Animated.timing(progress, { toValue: 0, ...PEEK_MOTION.close, useNativeDriver: true }).start(({ finished }) => {
-        if (finished) finishPeek(windowId, peek.tabId);
-      });
-    };
-    const grown = (done: () => void) => {
-      if (leaving.current === "expand") return;
-      leaving.current = "expand";
-      progress.stopAnimation();
-      progress.setValue(1);
-      if (fade) return done();
-      Animated.timing(expand, { toValue: 1, ...PEEK_MOTION.expand, useNativeDriver: true }).start(done);
-    };
-    return registerPeekMotion(windowId, close, grown);
-  }, [motion]);
+    if (!known) return;
+    void stage.current?.begin(generation);
+    return registerPeekMotion(windowId, {
+      tabId: peek.tabId,
+      close: () => stage.current?.close(generation) ?? Promise.resolve(false),
+      promote: () => stage.current?.promote(generation) ?? Promise.resolve(false),
+    });
+  }, [known]);
 
-  const gestures = useSettings((s) => s.littleWindowGestures);
-  const pinch: PinchMotion = {
-    reduce: fade,
-    idle: () => !!leaving.current,
-    begin: () => {
-      progress.stopAnimation();
-      expand.stopAnimation();
-    },
-    follow: (magnification) => {
-      const follow = pinchFollow(magnification, START_SCALE);
-      progress.setValue(follow.progress);
-      expand.setValue(follow.expand);
-    },
-    settle: () => pinchSettle([{ value: progress, to: 1 }, { value: expand, to: 0 }]),
-    open: () => {
-      notePinch("peek", "open");
-      openPeekAsTab(windowId);
-    },
-    close: () => {
-      notePinch("peek", "close");
-      dismissPeek(windowId);
-    },
+  const onState = (state: PeekStageState) => {
+    if (state.generation !== generation) return;
+    if (state.phase === "entering" && !seen.current.entered) {
+      seen.current.entered = true;
+      notePeekEntrance(state.entrance, !!state.fallback && state.entrance !== "fade", state.readyTimedOut);
+    }
+    if (state.interrupted && !seen.current.interrupted) {
+      seen.current.interrupted = true;
+      notePeekInterrupt();
+    }
   };
 
-  const scaleX = fade
-    ? 1
-    : Animated.multiply(
-        progress.interpolate({ inputRange: [0, 1], outputRange: [START_SCALE, 1] }),
-        expand.interpolate({ inputRange: [0, 1], outputRange: [1, width / Math.max(frame.width, 1)] }),
-      );
-  const scaleY = fade
-    ? 1
-    : Animated.multiply(
-        progress.interpolate({ inputRange: [0, 1], outputRange: [START_SCALE, 1] }),
-        expand.interpolate({ inputRange: [0, 1], outputRange: [1, height / Math.max(frame.height, 1)] }),
-      );
-  const translateX = fade ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [fromX - centerX, 0] });
-  const translateY = fade ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [fromY - centerY, 0] });
-  const cardOpacity = fade ? progress : progress.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 1, 1] });
-  const dim = Animated.multiply(progress, expand.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }));
-
+  const cardRect = geometry.card;
+  const pageRect = geometry.page;
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents={motion ? "box-none" : "none"}>
-      <Animated.View pointerEvents={fullscreen ? "none" : "auto"} style={[StyleSheet.absoluteFill, { opacity: fullscreen ? 0 : dim }]}>
+    <PeekStage
+      ref={stage}
+      geometry={geometry}
+      reduceMotion={!!reduce}
+      gestures={!fullscreen && gestures}
+      meshAllowed={meshAllowed}
+      style={StyleSheet.absoluteFill}
+      onPeekState={onState}
+      onPeekPinch={({ generation: g, outcome }) => g === generation && outcome !== "stay" && notePinch("peek", outcome)}
+      onPeekDone={({ generation: g, outcome }) => {
+        if (g !== generation || seen.current.done) return;
+        seen.current.done = true;
+        notePeekDone(outcome);
+        if (outcome === "closed") finishPeek(windowId, peek.tabId);
+        else promotePeekNow(windowId, peek.tabId);
+      }}
+    >
+      <View collapsable={false} style={StyleSheet.absoluteFill}>
         <Pressable
           accessibilityLabel="Close Peek"
           onPress={() => dismissPeek(windowId)}
           style={{ flex: 1, borderRadius: card.radius, backgroundColor: theme.dark ? PEEK_SCRIM.dark : PEEK_SCRIM.light }}
         />
-      </Animated.View>
-      <Animated.View
-        style={
-          fullscreen
-            ? StyleSheet.absoluteFill
-            : { position: "absolute", ...frame, opacity: cardOpacity, transform: [{ translateX }, { translateY }, { scaleX }, { scaleY }] }
-        }
-      >
-        {!fullscreen && (
+      </View>
+      <View collapsable={false} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+        <View style={{ position: "absolute", left: cardRect.x, top: cardRect.y, width: cardRect.width, height: cardRect.height }}>
           <Panel
             radius={SMALL_WINDOW_RADIUS}
             border={null}
             shadow={{ color: ink.black, opacity: windowFrame.shadowOpacity, radius: windowFrame.shadowRadius, offset: windowFrame.shadowOffset }}
             style={StyleSheet.absoluteFill}
           />
-        )}
-        <PinchArea enabled={!fullscreen && !!motion && gestures} motion={pinch} style={{ flex: 1 }}>
-          <View style={{ flex: 1, borderRadius: fullscreen ? 0 : SMALL_WINDOW_RADIUS, overflow: "hidden" }}>
-            {!fullscreen && <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />}
-            {!fullscreen && <PeekBar windowId={windowId} tabId={peek.tabId} />}
-            <View
-              style={
-                fullscreen
-                  ? { flex: 1 }
-                  : { flex: 1, marginLeft: card.inset, marginRight: card.inset, marginBottom: card.inset, borderRadius: card.radius, overflow: "hidden", backgroundColor: theme.card }
-              }
-            >
-              {page(peek.tabId, peek.sourceId, fullscreen ? width : frame.width - 2 * card.inset)}
-            </View>
+          <View style={{ flex: 1, borderRadius: SMALL_WINDOW_RADIUS, overflow: "hidden" }}>
+            <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
+            <PeekBar windowId={windowId} tabId={peek.tabId} />
           </View>
-        </PinchArea>
-        {!fullscreen && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: SMALL_WINDOW_RADIUS, borderWidth: StyleSheet.hairlineWidth, borderColor: windowFrame.innerRim }]} />}
-        {!fullscreen && (
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: SMALL_WINDOW_RADIUS, borderWidth: StyleSheet.hairlineWidth, borderColor: windowFrame.innerRim }]} />
           <View
             pointerEvents="none"
             style={{
@@ -206,9 +174,14 @@ function PeekCard({
               borderColor: windowFrame.outerRim,
             }}
           />
-        )}
-      </Animated.View>
-    </View>
+        </View>
+      </View>
+      <View collapsable={false} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+        <View style={{ position: "absolute", left: pageRect.x, top: pageRect.y, width: pageRect.width, height: pageRect.height, backgroundColor: donor ? undefined : theme.card }}>
+          {page(peek.tabId, peek.sourceId, pageRect.width)}
+        </View>
+      </View>
+    </PeekStage>
   );
 }
 

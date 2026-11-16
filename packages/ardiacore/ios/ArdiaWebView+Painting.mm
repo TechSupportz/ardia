@@ -95,6 +95,10 @@ BOOL Above(NSView *a, NSView *b) {
 
 - (void)setFrameSize:(NSSize)newSize {
   [super setFrameSize:newSize];
+  if (_life.waitingForSize && !NSIsEmptyRect(self.bounds)) {
+    _life.waitingForSize = NO;
+    if (!_tab) [self ensureTab];
+  }
   [self layoutPage];
   if (_visible) [ArdiaEarlyWindow noteLayoutChangeIn:self.window];
 }
@@ -549,6 +553,20 @@ BOOL Above(NSView *a, NSView *b) {
   WithoutActions(^{
     mine.layer.zPosition = below - 1;
   });
+}
+
+@end
+
+@implementation ArdiaWebView (PaintedFrame)
+
+- (BOOL)showsPaintedFrame {
+  NSView *page = _tab.view;
+  if (!page || page.superview != self || page.hidden) return NO;
+  NSView *widget = RenderWidgetIn(page);
+  if (!widget || widget.hidden) return NO;
+  for (CALayer *tree in widget.layer.sublayers)
+    if (tree.sublayers.count) return YES;
+  return NO;
 }
 
 @end
