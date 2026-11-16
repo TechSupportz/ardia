@@ -234,6 +234,8 @@ final class PeekStage: ExpoView {
     CATransaction.setDisableActions(true)
     scrim.layer?.opacity = Float(f.scrimAlpha)
     card.layer?.opacity = Float(f.cardAlpha)
+    card.layer?.masksToBounds = true
+    card.layer?.cornerRadius = motion.geometry.fullscreen ? 0 : motion.geometry.tabBottomRadius
     chrome.layer?.opacity = Float(f.chromeAlpha)
     if let layer = chrome.layer { layer.sublayerTransform = f.card.layerTransform(anchor: anchor(layer), height: bounds.height, topDown: chrome.topDown) }
     if let layer = page.layer {

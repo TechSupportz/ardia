@@ -9,29 +9,49 @@ is already laid out at the size it will have as a tab.
 - **One native owner.** `PeekStage` (`packages/shell/ios/PeekStage.swift`) holds the scrim, the card chrome and the
   page in containers it owns, and one state machine (`PeekMotion.swift`) drives every frame from a display link:
   waiting, entrance, open, gesture, settle, close, promote. JS starts it (`begin`), asks it to close or promote, and hears
-  back once per generation (`onPeekDone`). Nothing in React animates the card.
+  back once per generation (`onPeekDone`). Nothing in React animates the card. Commands and gestures reset the motion's
+  clock to the event, so nothing jumps after the card has rested.
 - **Fixed viewport.** The page is laid out from the first frame at the rectangle it will fill as a tab
   (`components/peek/peekGeometry.ts`: the card minus the toolbar row, the bookmarks bar when it shows and the share bar),
-  and shown at one uniform scale `k` inside the card. Open as Tab springs that scale to 1 and the page origin to its tab
-  position, then hands the same Chrome tab to the tab's pane at the same size: no resize, no reflow, no reload.
-- **Chrome fades on its own.** The card's bar, backdrop and rims follow the card's scale but fade by their own curve, so
-  the page never scales twice.
-- **Genie is a mesh on the card, checked at runtime.** `ArdiaPeekMesh` (`packages/shell/ios/ArdiaPeekMesh.m`) checks
-  the private `CAMeshTransform` class, its constructor's selector, argument count and the layout of its vertex and face
-  structs before it calls anything, validates every vertex and face, and catches exceptions. Any failure plays the
-  Seamless entrance instead (`affine`), and reduced motion fades (`fade`).
-- **Interrupting the Genie.** A pinch, close or promote during the warp freezes the warp's last presented vertices and
-  opacity as a residual on top of the Seamless state: a zero pinch moves no vertex, and the residual springs away while
-  the uniform scale follows the fingers.
-- **Input.** Core Animation transforms don't move AppKit's geometry, so while the page is scaled the stage maps each
-  mouse and scroll event through the inverse of what is on screen before Chrome sees it. During the warp the card takes
-  no clicks (the page isn't where it looks); pinch and dismiss still work.
-- **Test keys.** `ARDIA_TEST=peekMesh=unavailable|throws`, `peekReady=never`, `peekReduceMotion`, `peekSlow=<n>`.
-- **Readiness.** `begin` waits for the page's first drawn frame (`-[ArdiaWebView showsPaintedFrame]`, polled each
-  display frame), at most `PEEK_READY_TIMEOUT` (150 ms); then the entrance plays anyway over the card's own colour.
-- **Mesh.** 36 rows × 4 columns, one topology for every frame. Each row edge springs on its own (critically damped), slower the closer it is to the link with a smoothstep profile, so the edge bends in one curve instead of folding at the link's row.
-- **Source.** The page script reports the click point, not the link's bounds, so the Genie starts from a 28 × 18 pt
-  rectangle centred on that point, clamped into the card.
+  and shown at one uniform scale `k` inside the card. Its rounded clip is a mask in the page's own (unscaled)
+  coordinates, because a layer's mask is drawn through its `sublayerTransform`. Open as Tab springs the scale to 1 and the
+  page origin to its tab position.
+- **Hand-over.** Open as Tab keeps the Peek's host mounted (`state/peek/donors.ts`) until the tab's own host has the
+  page: the tab's `ArdiaWebView` adopts it straight from the Peek's (`takeTransferredTab`, same window, once it has a
+  size), leaving the page view in the window throughout, so Chrome sees no hide, no resize and no reload. The Peek's host
+  stops issuing navigations and registering its handle once the tab has left the Peek, and its teardown leaves the page
+  alone; its empty container is hidden in the same Core Animation commit as the adoption. If the tab's host never takes
+  it within a second, the old park-and-take path runs.
+- **Chrome fades on its own.** The card's bar, backdrop and rims follow the card's scale but fade by their own curve.
+- **Pinch stays inside the window.** The spread follows the fingers up to 80 % of the way, then eases into exactly the
+  tab's size with no overshoot; the card is clipped to the content area with its corner radius.
+- **Genie, both ways.** One progress value on a critically damped spring (0.26 s response) drives a funnel: the sides
+  narrow first along a smoothstep profile of each point's distance to the link (left and right edges each move
+  monotonically toward the link's edges), then the rows slide into the link, nearest first. The card keeps full opacity
+  until the last 12 %. Close plays it in reverse from whatever is on screen (a pinched card, a half-finished entrance),
+  so pinch-in, ×, ⌘W and Escape all fold back into the link.
+- **Genie is a mesh on the card, checked at runtime, behind a kill switch.** `peekGenie` (`platform/killSwitches.ts`)
+  is read before the mesh runtime is ever inspected. `ArdiaPeekMesh` (`packages/shell/ios/ArdiaPeekMesh.m`) checks
+  the private `CAMeshTransform` factory's exact encoding, the layer property, a vertex round-trip and interpolation
+  support, validates every vertex and face, and catches exceptions. Any failure plays the zoom instead (`affine`), and
+  reduced motion fades (`fade`).
+- **Interrupting the Genie.** A pinch, close or promote during the warp starts from the last committed frame's
+  vertices and opacity, as a residual that springs away at the warp's own speed while the uniform scale follows the
+  fingers.
+- **Input.** Core Animation transforms don't move AppKit's geometry, so while the page is scaled the stage maps mouse
+  events through the inverse of what is on screen before Chrome sees them. A wheel event that can't be rebuilt with its
+  window goes through the hit-test route instead (it reaches the page, at the unscaled point). During the warp the card
+  takes no clicks; pinch and Escape still work. The magnify monitor is installed by the stage itself.
+- **Readiness.** `begin` waits for the page's compositor layers to be attached (`-[ArdiaWebView showsPaintedFrame]`,
+  polled each display frame; this is layer presence, not a renderer acknowledgement of a presented frame), at most
+  150 ms; then the entrance plays anyway over the card's own colour.
+- **Source.** The page script reports the click point, not the link's bounds, so the Genie targets a 28 × 18 pt
+  rectangle centred on that point, widened to 12 % of the card.
+- **Test keys.** `ARDIA_TEST=peekMesh=unavailable|throws`, `peekReady=never`, `peekReduceMotion`, `peekSlow=<n>`;
+  `ARDIA_SWITCHES=peekGenie=off`.
+- **Known limits.** Chrome's own popups, context menus, autofill and IME candidate window are placed by the engine from
+  the page's unscaled position while the Peek is at rest; fixing that needs an engine change (a visual transform in the
+  render widget's view-to-screen conversions).
 
 ## Failure scenarios
 
@@ -67,7 +87,7 @@ that catches it. Every check writes its geometry, identity and frame trace to th
 | --- | --- | --- | --- |
 | P21 | A real trackpad pinch never reaches the Peek: the magnify monitor was only installed by `MagnifyArea`, which Peek no longer uses, and the synthetic test called the router directly | pinching zooms the page instead | `pinch-monitor`: a magnify event posted through `NSApp` (not the router) with no Little Ardia window open moves the card |
 | P22 | The page is drawn at `k²` inside a card sized for `k`, so a wide border shows around it | WindowServer capture: page rect ≠ the card's page slot | `rest-capture`: the drawn page edge sits `inset` from the card edge (±2 pt) in a WindowServer capture |
-| P23 | The Genie collapses to a 28 × 18 pt point and staggers rows far apart, so it reads as a violent fold | per-row timing spread and neck size | `genie-shape`: the neck is ≥ 18 % of the card's width, row timing spread ≤ ± 12 %, and the entrance settles in ≤ 320 ms |
+| P23 | The Genie collapses to a 28 × 18 pt point or folds where rows cross | neck size, fold at the link's row | `genie-shape`: the narrowest warped card is ≥ 10 % of the card's width and the entrance settles in ≤ 340 ms; WindowServer captures show one smooth funnel edge |
 | P24 | Closing doesn't retrace the entrance | close plays a zoom while open played a Genie | `close-genie`: close by ×, Esc and pinch-in all warp back into the link; with the mesh off it zooms back |
 | P25 | An interruption recomputes the warp at the event's time instead of starting from what was last on screen | first frame after a pinch differs from the last drawn frame | `regrab-genie-*`: the frame at the freeze equals the last committed frame, and no vertex moves more per frame after the freeze than the fastest one did before it |
 | P26 | Promotion parks the page outside the window between the two hosts | the page sees `visibilitychange` hidden → visible and a `resize` | `handoff-direct`: no `visibilitychange`, no `resize`, same `browserId`, the Peek host keeps the tab until the tab's host has it, and neither host's teardown closes or clears it |

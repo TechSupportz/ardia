@@ -35,7 +35,7 @@ const tone = (() => {
   return buf;
 })();
 const rows = Array.from({ length: 160 }, (_, i) => `<div class=row>row ${i}</div>`).join("");
-const PAGE = `<!doctype html><title>peek target</title><style>body{margin:0;font:16px system-ui}.row{height:40px;border-bottom:1px solid #ccc}#hit{position:fixed;left:200px;top:140px;width:180px;height:120px;background:#4a7}</style>
+const PAGE = `<!doctype html><title>peek target</title><style>body{margin:0;font:16px system-ui;background:#3a7}.row{height:40px;border-bottom:1px solid #ccc}#hit{position:fixed;left:200px;top:140px;width:180px;height:120px;background:#4a7}</style>
 <input id=f><div id=hit></div><audio id=a muted src="/tone.wav"></audio>${rows}
 <script>window.__nonce=Math.random().toString(36).slice(2);window.__resizes=0;window.__sizes=[];addEventListener("resize",()=>{__resizes++;__sizes.push([innerWidth,innerHeight,performance.now()])});window.__vis=[];document.addEventListener("visibilitychange",()=>__vis.push([document.visibilityState,performance.now()]));window.__over=[];addEventListener("mouseover",e=>__over.push(e.target.id),true);window.__wheel=[];addEventListener("wheel",e=>__wheel.push([e.clientX,e.clientY,e.deltaY]),true);
 window.__clicks=[];addEventListener("mousedown",e=>__clicks.push({x:e.clientX,y:e.clientY,target:e.target.id}),true);</script>`;
@@ -154,7 +154,9 @@ try {
     near(last.page[2], 0, 1e-6, "final y");
     assert.deepEqual(after.vis.slice(before.vis.length), [], "the page never went hidden during the hand-over (the Peek host kept it until the tab's host had it)");
     assert.equal(after.resizes, 0, "no resize event");
-    assert.ok(promoted.events.some((e) => e.event === "donated"), "the Peek host gave the page up in place");
+    const final = await stateOf();
+    record.donorEvents = final?.events?.map((e) => e.event);
+    assert.ok(final?.events?.some((e) => e.event === "donated"), "the Peek host gave the page up in place");
   });
 
   await check("handoff-autohide", async (record) => {
@@ -218,7 +220,7 @@ try {
     }
     const bmp = readFileSync(file);
     const off = bmp.readUInt32LE(10), w = bmp.readInt32LE(18), h = bmp.readInt32LE(22), bpp = bmp.readUInt16LE(28) / 8;
-    const stride = Math.ceil((w * bpp) / 4) * 4, scale = w / (s.stageInWindow.x + s.stageInWindow.width + 0.0001) > 1.5 ? 2 : 1;
+    const stride = Math.ceil((w * bpp) / 4) * 4, scale = w / WIDTH;
     const px = (x, y) => { const X = Math.round(x * scale), Y = Math.round(y * scale), row = h > 0 ? h - 1 - Y : Y, i = off + row * stride + X * bpp; return [bmp[i + 2], bmp[i + 1], bmp[i]]; };
     const g = s.geometry, o = s.stageInWindow, sh = s.trace.at(-1).shown;
     const y = o.y + sh[1] + sh[3] * 0.3;
@@ -237,7 +239,7 @@ try {
     const enter = s.trace.find((f) => f.phase === "entering"), opened = s.trace.find((f) => f.phase === "open" && f.t > enter.t);
     const narrowest = Math.min(...frames.map((f) => f.bbox[2]));
     Object.assign(record, { narrowest, card: s.geometry.card.width, duration: opened.t - enter.t, frames: frames.length });
-    assert.ok(narrowest >= 0.2 * s.geometry.card.width, `neck ${Math.round(narrowest)} of ${Math.round(s.geometry.card.width)}`);
+    assert.ok(narrowest >= 0.1 * s.geometry.card.width, `neck ${Math.round(narrowest)} of ${Math.round(s.geometry.card.width)}`);
     assert.ok(opened.t - enter.t <= 0.34, `entrance ${Math.round((opened.t - enter.t) * 1000)} ms`);
   });
 
