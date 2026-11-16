@@ -25,11 +25,15 @@ is already laid out at the size it will have as a tab.
 - **Chrome fades on its own.** The card's bar, backdrop and rims follow the card's scale but fade by their own curve.
 - **Pinch stays inside the window.** The spread follows the fingers up to 80 % of the way, then eases into exactly the
   tab's size with no overshoot; the card is clipped to the content area with its corner radius.
-- **Genie, both ways.** One progress value on a critically damped spring (0.26 s response) drives a funnel: the sides
-  narrow first along a smoothstep profile of each point's distance to the link (left and right edges each move
-  monotonically toward the link's edges), then the rows slide into the link, nearest first. The card keeps full opacity
-  until the last 12 %. Close plays it in reverse from whatever is on screen (a pinched card, a half-finished entrance),
-  so pinch-in, ×, ⌘W and Escape all fold back into the link.
+- **Genie, both ways.** Each mesh row moves straight between its place on the card and its place in the link's
+  rectangle (28 × 18 pt around the click, widened to 12 % of the card) on its own critically damped spring, inspired
+  by [DiaTweaks](https://github.com/JaceThings/DiaTweaks)' Peek. The rows' responses are staggered by the link's height on the card: 0.2 s at the middle row (0.17 s closing), from
+  0.5× to 1.5× toward the edges, the rows nearest the link slowest on the way out and fastest on the way back in, and the
+  stagger fades to nothing as the link nears the card's middle (75 % strength below it). An edge link bends the card
+  like the Dock's Genie, a centred one zooms straight out, and no row ever passes another, so nothing folds. The card is
+  opaque throughout the entrance; closing fades it as its last row nears the link. The scrim follows a 0.26 s spring.
+  Close plays from whatever is on screen (a pinched card, a half-finished entrance), so pinch-in, ×, ⌘W and Escape all
+  shrink back into the link.
 - **Genie is a mesh on the card, checked at runtime, behind a kill switch.** `peekGenie` (`platform/killSwitches.ts`)
   is read before the mesh runtime is ever inspected. `ArdiaPeekMesh` (`packages/shell/ios/ArdiaPeekMesh.m`) checks
   the private `CAMeshTransform` factory's exact encoding, the layer property, a vertex round-trip and interpolation
@@ -87,7 +91,7 @@ that catches it. Every check writes its geometry, identity and frame trace to th
 | --- | --- | --- | --- |
 | P21 | A real trackpad pinch never reaches the Peek: the magnify monitor was only installed by `MagnifyArea`, which Peek no longer uses, and the synthetic test called the router directly | pinching zooms the page instead | `pinch-monitor`: a magnify event posted through `NSApp` (not the router) with no Little Ardia window open moves the card |
 | P22 | The page is drawn at `k²` inside a card sized for `k`, so a wide border shows around it | WindowServer capture: page rect ≠ the card's page slot | `rest-capture`: the drawn page edge sits `inset` from the card edge (±2 pt) in a WindowServer capture |
-| P23 | The Genie collapses to a 28 × 18 pt point or folds where rows cross | neck size, fold at the link's row | `genie-shape`: the narrowest warped card is ≥ 10 % of the card's width and the entrance settles in ≤ 340 ms; WindowServer captures show one smooth funnel edge |
+| P23 | The Genie collapses to a 28 × 18 pt point or folds where rows cross | neck size, fold at the link's row | `genie-shape`: the narrowest warped card is ≥ 10 % of the card's width and the entrance settles in ≤ 500 ms; WindowServer captures show one smooth funnel edge |
 | P24 | Closing doesn't retrace the entrance | close plays a zoom while open played a Genie | `close-genie`: close by ×, Esc and pinch-in all warp back into the link; with the mesh off it zooms back |
 | P25 | An interruption recomputes the warp at the event's time instead of starting from what was last on screen | first frame after a pinch differs from the last drawn frame | `regrab-genie-*`: the frame at the freeze equals the last committed frame, and no vertex moves more per frame after the freeze than the fastest one did before it |
 | P26 | Promotion parks the page outside the window between the two hosts | the page sees `visibilitychange` hidden → visible and a `resize` | `handoff-direct`: no `visibilitychange`, no `resize`, same `browserId`, the Peek host keeps the tab until the tab's host has it, and neither host's teardown closes or clears it |

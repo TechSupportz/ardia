@@ -240,7 +240,7 @@ try {
     const narrowest = Math.min(...frames.map((f) => f.bbox[2]));
     Object.assign(record, { narrowest, card: s.geometry.card.width, duration: opened.t - enter.t, frames: frames.length });
     assert.ok(narrowest >= 0.1 * s.geometry.card.width, `neck ${Math.round(narrowest)} of ${Math.round(s.geometry.card.width)}`);
-    assert.ok(opened.t - enter.t <= 0.34, `entrance ${Math.round((opened.t - enter.t) * 1000)} ms`);
+    assert.ok(opened.t - enter.t <= 0.5, `entrance ${Math.round((opened.t - enter.t) * 1000)} ms`);
   });
 
   for (const via of ["command", "escape", "pinch"]) {

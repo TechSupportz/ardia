@@ -15,13 +15,13 @@ final class PeekMotion {
   static let fadeSeconds = 0.15
   static let rows = 36
   static let columns = 4
-  static let genieResponse = 0.26
-  static let closeResponse = 0.26
-  static let genieRest = 0.004
+  static let genieResponse = 0.2
+  static let genieCloseResponse = 0.17
+  static let scrimResponse = 0.26
+  static let restWithin = 1.0
   static let neckWidth = 0.12
-  static let rowLag = 0.5
-  static let squeezeLead = 0.4
-  static let fadeTail = 0.12
+  static let bottomLinkStagger = 0.75
+  static let closeFadeSpan = 0.4
   static let startScale = 0.12
   static let smallestScale = 0.5
 
@@ -226,7 +226,7 @@ final class PeekMotion {
       }
     case .entering:
       switch entrance {
-      case .genie: if entranceP(now) <= Self.genieRest { snapOpen(at: now) }
+      case .genie: if genieSettled(at: now - genieStart, opening: true) { snapOpen(at: now) }
       case .affine:
         presence.step(dt)
         if presence.settled(within: 1e-3) { snapOpen(at: now) }
@@ -242,7 +242,7 @@ final class PeekMotion {
       if m.settled(within: 5e-4), warp.settled(within: 1e-3), presence.settled(within: 1e-3) { snapOpen(at: now) }
     case .closing:
       if warpingClose {
-        if closeP(now) >= 1 - Self.genieRest { finish(.closed) }
+        if genieSettled(at: now - closeStart, opening: false) { finish(.closed) }
       } else {
         warp.step(dt)
         m.step(dt)
@@ -293,27 +293,32 @@ final class PeekMotion {
       return f
     }
     if warpingClose {
-      let p = closeP(now)
+      let t = now - closeStart
       let shrink = closeCard.apply(g.card)
       f.card = closeCard
       f.page = base.then(closeCard)
       f.shownPage = f.page.apply(g.page)
       f.from = closeFrom
-      let funnel = funnelGrid(card: shrink, p: p)
-      f.to = zip(funnel, closeOffsets).map { CGPoint(x: $0.x + $1.x * (1 - p), y: $0.y + $1.y * (1 - p)) }
-      f.cardAlpha = closeAlpha * Self.unit((1 - p) / Self.fadeTail)
-      f.scrimAlpha = closeScrim * (1 - p)
+      let rows = rowAways(card: shrink, at: t, opening: false)
+      let funnel = genieGrid(card: shrink, aways: rows)
+      let stride = Self.columns + 1
+      f.to = funnel.indices.map { i in
+        let keep = 1 - rows[i / stride], o = closeOffsets[i]
+        return CGPoint(x: funnel[i].x + o.x * keep, y: funnel[i].y + o.y * keep)
+      }
+      f.cardAlpha = closeAlpha * Self.smooth((1 - (rows.min() ?? 1)) / Self.closeFadeSpan)
+      f.scrimAlpha = closeScrim * PeekSpring.remaining(t, response: Self.scrimResponse * slow)
       f.chromeAlpha = closeChrome
       f.residual = 1
       return f
     }
     if warpingEntrance {
-      let p = entranceP(now)
+      let t = now - genieStart
       f.page = base
       f.from = restGrid()
-      f.to = funnelGrid(card: g.card, p: p)
-      f.cardAlpha = Self.unit((1 - p) / Self.fadeTail)
-      f.scrimAlpha = 1 - p
+      f.to = genieGrid(card: g.card, aways: rowAways(card: g.card, at: t, opening: true))
+      f.cardAlpha = 1
+      f.scrimAlpha = 1 - PeekSpring.remaining(t, response: Self.scrimResponse * slow)
       f.residual = 1
       f.shownPage = g.rest
       return f
@@ -374,15 +379,18 @@ final class PeekMotion {
     interrupted = true
     guard entrance == .genie else { return }
     let at = committed != nil ? committedAt : now
-    let p = entranceP(at)
+    let t = at - genieStart
     let rest = restGrid()
     let shown = committed.flatMap { $0.to.count == rest.count ? $0 : nil }
-    residual = zip(shown?.to ?? funnelGrid(card: geometry.card, p: p), rest).map { CGPoint(x: $0.x - $1.x, y: $0.y - $1.y) }
-    alphaResidual = (shown?.cardAlpha ?? Self.unit((1 - p) / Self.fadeTail)) - 1
-    scrimResidual = (shown?.scrimAlpha ?? 1 - p) - 1
+    let aways = rowAways(card: geometry.card, at: t, opening: true)
+    residual = zip(shown?.to ?? genieGrid(card: geometry.card, aways: aways), rest).map { CGPoint(x: $0.x - $1.x, y: $0.y - $1.y) }
+    alphaResidual = (shown?.cardAlpha ?? 1) - 1
+    scrimResidual = (shown?.scrimAlpha ?? 1 - PeekSpring.remaining(t, response: Self.scrimResponse * slow)) - 1
     clock = at
-    let w = 2 * Double.pi / (Self.genieResponse * slow), t = at - genieStart
-    let rate = p > 1e-6 ? -w * w * t / (1 + w * t) : 0
+    let step = 1.0 / 240
+    let earlier = rowAways(card: geometry.card, at: max(0, t - step), opening: true)
+    let total = aways.reduce(0, +)
+    let rate = total > 1e-6 ? (total - earlier.reduce(0, +)) / step / total : 0
     warp.jump(1)
     warp.velocity = rate
     warp.aim(0, response: 0.22)
@@ -405,36 +413,47 @@ final class PeekMotion {
     clearResidual()
   }
 
-  private func closeP(_ now: Double) -> Double { 1 - PeekSpring.remaining(now - closeStart, response: Self.closeResponse * slow) }
-
-  private func entranceP(_ now: Double) -> Double { PeekSpring.remaining(now - genieStart, response: Self.genieResponse * slow) }
-
   private func target(for c: CGRect) -> CGRect {
     let s = geometry.source
     let w = max(s.width, c.width * Self.neckWidth)
     return CGRect(x: s.midX - w / 2, y: s.minY, width: w, height: s.height)
   }
 
-  private func funnelGrid(card c: CGRect, p: Double) -> [CGPoint] {
-    let t = target(for: c)
-    return Self.grid { k, j in Self.funnelPoint(card: c, target: t, k: k, j: j, p: p) }
+  static func rowResponse(row k: Double, stagger g: Double, base: Double) -> Double {
+    let up = 1 - k
+    let n = g < 0 ? 1 - (1 - up).squareRoot() : up.squareRoot()
+    return base * (1 - 0.5 * g + g * n)
   }
 
-  static func funnelPoint(card c: CGRect, target t: CGRect, k: Double, j: Double, p: Double) -> CGPoint {
-    let smooth = { (v: Double) -> Double in let x = unit(v); return x * x * (3 - 2 * x) }
-    let ty = t.midY
-    let restY = c.minY + k * c.height
-    let extent = restY < ty ? max(ty - c.minY, 1) : max(c.maxY - ty, 1)
-    let near = 1 - unit(abs(restY - ty) / extent)
-    let squeeze = smooth(p / squeezeLead)
-    let slide = smooth((p - squeezeLead * 0.5) / (1 - squeezeLead * 0.5))
-    let rowSlide = smooth(slide * (1 + rowLag) - rowLag * (1 - near))
-    let y = lerp(restY, t.minY + k * t.height, rowSlide)
-    let reach = 1 - smooth(abs(y - ty) / extent)
-    let pinch = squeeze * lerp(reach, 1, rowSlide)
-    let left = lerp(c.minX, t.minX, pinch), right = lerp(c.maxX, t.maxX, pinch)
-    return CGPoint(x: lerp(left, right, j), y: y)
+  static func stagger(card c: CGRect, source s: CGRect) -> Double {
+    let lift = 1 - 2 * unit((s.midY - c.minY) / max(c.height, 1))
+    return lift >= 0 ? lift : bottomLinkStagger * lift
   }
+
+  private func rowAways(card c: CGRect, at t: Double, opening: Bool) -> [Double] {
+    let g = Self.stagger(card: c, source: geometry.source) * (opening ? 1 : -1)
+    return (0...Self.rows).map { r in
+      let left = PeekSpring.remaining(t, response: Self.rowResponse(row: Double(r) / Double(Self.rows), stagger: g, base: (opening ? Self.genieResponse : Self.genieCloseResponse) * slow))
+      return opening ? left : 1 - left
+    }
+  }
+
+  private func genieSettled(at t: Double, opening: Bool) -> Bool {
+    let c = geometry.card
+    let rows = rowAways(card: c, at: t, opening: opening)
+    let span = max(c.width, c.height, 1)
+    return opening ? (rows.max() ?? 0) * span <= Self.restWithin : (1 - (rows.min() ?? 1)) * span <= Self.restWithin
+  }
+
+  private func genieGrid(card c: CGRect, aways: [Double]) -> [CGPoint] {
+    let t = target(for: c)
+    return Self.grid { k, j in
+      let away = aways[Int((k * Double(Self.rows)).rounded())]
+      return CGPoint(x: Self.lerp(c.minX + j * c.width, t.minX + j * t.width, away), y: Self.lerp(c.minY + k * c.height, t.minY + k * t.height, away))
+    }
+  }
+
+  static func smooth(_ v: Double) -> Double { let x = unit(v); return x * x * (3 - 2 * x) }
 
   private func snapOpen(at now: Double) {
     phase = .open
@@ -461,14 +480,10 @@ final class PeekMotion {
     return Self.lerp(fade.from, fade.to, p)
   }
 
-
-
-
   private func restGrid() -> [CGPoint] {
     let c = geometry.card
     return Self.grid { k, j in CGPoint(x: c.minX + j * c.width, y: c.minY + k * c.height) }
   }
-
 
   private static func grid(_ point: (Double, Double) -> CGPoint) -> [CGPoint] {
     var points: [CGPoint] = []
