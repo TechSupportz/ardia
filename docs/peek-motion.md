@@ -11,6 +11,14 @@ is already laid out at the size it will have as a tab.
   waiting, entrance, open, gesture, settle, close, promote. JS starts it (`begin`), asks it to close or promote, and hears
   back once per generation (`onPeekDone`). Nothing in React animates the card. Commands and gestures reset the motion's
   clock to the event, so nothing jumps after the card has rested.
+- **Windows and Linux.** They have no native stage, so each registers a JS `ArdiaPeekStage`
+  (`packages/expo-windows/src/views/PeekStage.tsx`, `apps/linux/src/shims/web/PeekStage.tsx`) with the same contract
+  (`begin`, `close`, `promote`, the same state and done events) that replays the zoom they had before: the card grows
+  out of the link on the snappy spring (0.2 s, damping 0.9), shrinks back into it in 150 ms (ease-in), and Open as Tab
+  expands it to the tab's frame in 150 ms (ease-out) before the tab takes over; Reduce Motion fades, and a Peek that
+  comes back with its tab appears at rest. There the card is the old frame (5.5 % inset, the page filling it under the
+  bar, `nativePeekMotion` off in `lib/platformFeatures`), and the page hand-over between hosts (a Mac engine feature)
+  is skipped. Pinch isn't there, as before (no trackpad gestures).
 - **Fixed viewport.** The page is laid out from the first frame at the rectangle it will fill as a tab
   (`components/peek/peekGeometry.ts`: the card minus the toolbar row, the bookmarks bar when it shows and the share bar),
   and shown at one uniform scale `k` inside the card. Its rounded clip is a mask in the page's own (unscaled)

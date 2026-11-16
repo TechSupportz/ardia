@@ -15,6 +15,7 @@ import { navigationOf } from "../tabs/pageSession";
 import { liveOf, onLiveChange } from "../tabs/tabLive";
 import { notePageOverlay } from "../telemetry/usage";
 import { holdPeekDonor } from "./donors";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { endPeekToolbarPreview, previewPeekToolbar } from "./toolbarPreview";
 
 const store = () => useBrowser.getState();
@@ -55,7 +56,7 @@ const focusSoon = (windowId: string, tabId: string) =>
 export function promotePeekNow(windowId: string, tabId: string) {
   const peek = shownPeek(store(), windowId);
   if (peek?.tabId !== tabId) return endPeekToolbarPreview(windowId, tabId);
-  holdPeekDonor(windowId, tabId, peek.sourceId);
+  if (PLATFORM_FEATURES.nativePeekMotion) holdPeekDonor(windowId, tabId, peek.sourceId);
   const id = store().peekToTab(windowId, { sourceId: peek.sourceId });
   endPeekToolbarPreview(windowId, tabId);
   if (!id) return;

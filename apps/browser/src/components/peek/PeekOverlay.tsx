@@ -1,7 +1,7 @@
 import { breadcrumb } from "@ardia/core";
 import { WindowBackdrop, ink, PageCoverGate, Panel, PeekStage, reduceMotion, reduceMotionKnown, type PeekStageHandle, type PeekStageState } from "../ui";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useCardFrame } from "../window/cardFrame";
 import { usePeekSplitFull, useWindowPeeks } from "../../state/peek/hooks";
@@ -16,10 +16,11 @@ import { keyText } from "../../state/commands/keyText";
 import { splitViewAvailable } from "../../state/splits/splits";
 import { notePinch } from "../../state/telemetry/usage";
 import { notePeekDone, notePeekEntrance, notePeekInterrupt } from "../../state/telemetry/peekMotion";
-import { peekGeometry } from "./peekGeometry";
+import { peekGeometry, type PeekRect } from "./peekGeometry";
 import { usePeekPageTop } from "./usePeekPageTop";
 import { SMALL_BAR_HEIGHT } from "../../state/windows/small";
 import { switchOn } from "../../state/app/switches";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { endPeekToolbarPreview, previewPeekToolbar } from "../../state/peek/toolbarPreview";
 
 let generations = 0;
@@ -99,7 +100,6 @@ function PeekCard({
 }) {
   const theme = useTheme();
   const card = useCardFrame();
-  const windowFrame = theme.dark ? SMALL_WINDOW_FRAME.dark : SMALL_WINDOW_FRAME.light;
   const [reduce, setReduce] = useState<boolean | null>(() => reduceMotion());
   const [generation] = useState(() => ++generations);
   const stage = useRef<PeekStageHandle>(null);
@@ -122,6 +122,7 @@ function PeekCard({
         paneRadius: card.radius,
         from: fromX === null || fromY === null ? null : { x: fromX, y: fromY },
         fullscreen,
+        pageAtTabSize: PLATFORM_FEATURES.nativePeekMotion,
       }),
     [width, height, pageTop, card.inset, card.radius, fromX, fromY, fullscreen],
   );
@@ -163,7 +164,6 @@ function PeekCard({
 
   const cardRect = geometry.card;
   const pageRect = geometry.page;
-  const radius = smallWindowRadius();
   return (
     <PageCoverGate covering={shown}>
       <View style={[StyleSheet.absoluteFill, !shown && { opacity: 0 }]} pointerEvents={known && shown ? "box-none" : "none"}>
@@ -195,42 +195,68 @@ function PeekCard({
               style={{ flex: 1, borderRadius: card.radius, backgroundColor: theme.dark ? PEEK_SCRIM.dark : PEEK_SCRIM.light }}
             />
           </View>
-          <View collapsable={false} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-            <View style={{ position: "absolute", left: cardRect.x, top: cardRect.y, width: cardRect.width, height: cardRect.height }}>
-              <Panel
-                radius={radius}
-                border={null}
-                shadow={{ color: ink.black, opacity: windowFrame.shadowOpacity, radius: windowFrame.shadowRadius, offset: windowFrame.shadowOffset }}
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={{ flex: 1, borderRadius: radius, overflow: "hidden" }}>
-                <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
-                <PeekBar windowId={windowId} tabId={peek.tabId} />
-              </View>
-              <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: radius, borderWidth: StyleSheet.hairlineWidth, borderColor: windowFrame.innerRim }]} />
-              <View
-                pointerEvents="none"
-                style={{
-                  position: "absolute",
-                  left: -StyleSheet.hairlineWidth,
-                  top: -StyleSheet.hairlineWidth,
-                  right: -StyleSheet.hairlineWidth,
-                  bottom: -StyleSheet.hairlineWidth,
-                  borderRadius: radius + StyleSheet.hairlineWidth,
-                  borderWidth: StyleSheet.hairlineWidth,
-                  borderColor: windowFrame.outerRim,
-                }}
-              />
-            </View>
-          </View>
-          <View collapsable={false} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-            <View style={{ position: "absolute", left: pageRect.x, top: pageRect.y, width: pageRect.width, height: pageRect.height, backgroundColor: donor ? undefined : theme.card }}>
-              {page(peek.tabId, peek.sourceId, pageRect.width, shown, fullscreen)}
-            </View>
-          </View>
+          <PeekCardChrome windowId={windowId} tabId={peek.tabId} rect={cardRect} browserRadius={card.radius} />
+          <PeekPageLayer rect={pageRect} background={donor ? undefined : theme.card} browserRadius={card.radius}>
+            {page(peek.tabId, peek.sourceId, pageRect.width, shown, fullscreen)}
+          </PeekPageLayer>
         </PeekStage>
       </View>
     </PageCoverGate>
+  );
+}
+
+type PeekZoom = { toTab: Animated.Value; grown: Animated.AnimatedInterpolation<number> };
+
+function PeekCardChrome({ windowId, tabId, rect, browserRadius, zoom }: { windowId: string; tabId: string; rect: PeekRect; browserRadius: number; zoom?: PeekZoom }) {
+  const theme = useTheme();
+  const windowFrame = theme.dark ? SMALL_WINDOW_FRAME.dark : SMALL_WINDOW_FRAME.light;
+  const radius = smallWindowRadius();
+  const corner = zoom ? Animated.divide(zoom.toTab.interpolate({ inputRange: [0, 1], outputRange: [radius, browserRadius] }), zoom.grown) : radius;
+  const rim = zoom ? Animated.add(corner, StyleSheet.hairlineWidth) : radius + StyleSheet.hairlineWidth;
+  return (
+    <View collapsable={false} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <View style={{ position: "absolute", left: rect.x, top: rect.y, width: rect.width, height: rect.height }}>
+        <Panel
+          radius={radius}
+          border={null}
+          shadow={{ color: ink.black, opacity: windowFrame.shadowOpacity, radius: windowFrame.shadowRadius, offset: windowFrame.shadowOffset }}
+          style={StyleSheet.absoluteFill}
+        />
+        <Animated.View style={{ flex: 1, borderRadius: corner, overflow: "hidden" }}>
+          <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
+          <PeekBar windowId={windowId} tabId={tabId} />
+        </Animated.View>
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: corner, borderWidth: StyleSheet.hairlineWidth, borderColor: windowFrame.innerRim }]} />
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: -StyleSheet.hairlineWidth,
+            top: -StyleSheet.hairlineWidth,
+            right: -StyleSheet.hairlineWidth,
+            bottom: -StyleSheet.hairlineWidth,
+            borderRadius: rim,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: windowFrame.outerRim,
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
+function PeekPageLayer({ rect, background, browserRadius, zoom, children }: { rect: PeekRect; background: string | undefined; browserRadius: number; zoom?: PeekZoom; children: ReactNode }) {
+  return (
+    <View collapsable={false} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <Animated.View
+        style={[
+          { position: "absolute", left: rect.x, top: rect.y, width: rect.width, height: rect.height, backgroundColor: background },
+          zoom && { borderRadius: Animated.divide(browserRadius, zoom.grown), overflow: "hidden" },
+        ]}
+      >
+        {children}
+      </Animated.View>
+    </View>
   );
 }
 
