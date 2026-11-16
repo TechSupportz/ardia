@@ -93,6 +93,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSUInteger)guardedAccessibilityCalls;
 @end
 
+@interface ArdiaWebView (PaintedFrame)
+@property (nonatomic, readonly) BOOL showsPaintedFrame;
+@end
+
 @interface ArdiaWebView (NeighbourPages)
 + (void)wakeNeighbourPagesIn:(NSWindow *)window NS_SWIFT_NAME(wakeNeighbourPages(in:));
 + (void)wakeNeighbourPagesIn:(NSWindow *)window seconds:(CFTimeInterval)seconds committed:(BOOL)committed
