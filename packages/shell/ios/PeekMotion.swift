@@ -447,9 +447,14 @@ final class PeekMotion {
 
   private func genieGrid(card c: CGRect, aways: [Double]) -> [CGPoint] {
     let t = target(for: c)
+    var ys = aways.indices.map { r in
+      let k = Double(r) / Double(Self.rows)
+      return Self.lerp(c.minY + k * c.height, t.minY + k * t.height, aways[r])
+    }
+    for r in ys.indices.dropFirst() { ys[r] = max(ys[r], ys[r - 1]) }
     return Self.grid { k, j in
-      let away = aways[Int((k * Double(Self.rows)).rounded())]
-      return CGPoint(x: Self.lerp(c.minX + j * c.width, t.minX + j * t.width, away), y: Self.lerp(c.minY + k * c.height, t.minY + k * t.height, away))
+      let r = Int((k * Double(Self.rows)).rounded())
+      return CGPoint(x: Self.lerp(c.minX + j * c.width, t.minX + j * t.width, aways[r]), y: ys[r])
     }
   }
 

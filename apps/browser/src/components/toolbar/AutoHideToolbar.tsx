@@ -2,10 +2,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, View, type ViewStyle } from "react-native";
 import { useTheme } from "../ui/theme";
 import { pageHostLabel } from "../../lib/url";
-import { useSettings, useTab, useTabLive } from "../../state/browser/hooks";
+import { useTab } from "../../state/browser/hooks";
 import { useBrowserWhile, useStoreWhile } from "../../state/tabs/tabWatch";
 import type { ToolbarGeometry } from "../window/geometry";
-import { toolbarPalette, useEasedColor } from "../ui/toolbarColors";
+import { useEasedColor } from "../ui/toolbarColors";
 import { useToolbarHeld } from "../../state/app/transientUi";
 import { revealToolbar, setToolbarPeek, STRIP_HEIGHT, toolbarMode, useToolbarAutoHide, type ToolbarMode } from "../../state/windows/toolbarAutoHide";
 import { Toolbar } from "./Toolbar";
@@ -14,6 +14,7 @@ import { reduceMotion, space, Text } from "../ui";
 import { TOOLBAR_MOTION } from "./tokens";
 import { motionStep, tallPage, type MotionValue, type TallPage } from "./toolbarMotion";
 import { useToolbarRow } from "./useToolbarRow";
+import { useSitePalette } from "./useSitePalette";
 
 const HIDE_MS = TOOLBAR_MOTION.hide;
 const HIDE_EASING = curve.enter;
@@ -118,9 +119,7 @@ function useMovedOnce(mode: ToolbarMode) {
 export function AutoHideBackdrop({ tabId, mode, motion }: { tabId: string; mode: ToolbarMode; motion: Pick<ToolbarMotion, "bar"> }) {
   const theme = useTheme();
   const url = useTab(tabId, (t) => t?.url ?? "");
-  const themeColor = useTabLive(tabId, (l) => l.themeColor);
-  const extendColor = useSettings((s) => s.extendWebsiteColor);
-  const palette = toolbarPalette(theme, extendColor && url ? themeColor : null);
+  const palette = useSitePalette(tabId);
   const band = useEasedColor(palette.background);
   const { bar } = motion;
   const H = useToolbarRow().height;
@@ -167,11 +166,8 @@ export function AutoHideToolbar({
   mode: ToolbarMode;
   motion: Pick<ToolbarMotion, "bar" | "fade">;
 }) {
-  const theme = useTheme();
   const url = useTab(tabId, (t) => t?.url ?? "");
-  const themeColor = useTabLive(tabId, (l) => l.themeColor);
-  const extendColor = useSettings((s) => s.extendWebsiteColor);
-  const palette = toolbarPalette(theme, extendColor && url ? themeColor : null);
+  const palette = useSitePalette(tabId);
   const collapsed = mode === "collapsed";
   const modeNow = useRef(mode);
   modeNow.current = mode;

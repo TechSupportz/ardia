@@ -13,6 +13,7 @@ import { hostOf } from "@ardia/core";
 import { linkDestination } from "../../lib/linkWrappers";
 import { navigationOf } from "../tabs/pageSession";
 import { holdPeekDonor } from "./donors";
+import { endPeekToolbarPreview, previewPeekToolbar } from "./toolbarPreview";
 
 const store = () => useBrowser.getState();
 type PeekMotionHandle = { tabId: string; close: () => Promise<boolean>; promote: () => Promise<boolean> };
@@ -55,6 +56,7 @@ export function promotePeekNow(windowId: string, tabId: string) {
   if (peek?.tabId !== tabId) return;
   holdPeekDonor(windowId, tabId, peek.sourceId);
   const id = store().peekToTab(windowId);
+  endPeekToolbarPreview(windowId, tabId);
   if (!id) return;
   hapticTick();
   focusSoon(windowId, id);
@@ -64,8 +66,9 @@ export function openPeekAsTab(windowId: string) {
   const peek = store().peeks[windowId];
   if (!peek) return;
   const motion = motionOf(windowId);
-  if (motion) void motion.promote();
-  else promotePeekNow(windowId, peek.tabId);
+  if (!motion) return promotePeekNow(windowId, peek.tabId);
+  previewPeekToolbar(windowId, peek.tabId, peek.sourceId);
+  void motion.promote().then((started) => started || endPeekToolbarPreview(windowId, peek.tabId));
 }
 
 export function openPeekInSplit(windowId: string) {

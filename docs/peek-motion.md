@@ -23,6 +23,11 @@ is already laid out at the size it will have as a tab.
   alone; its empty container is hidden in the same Core Animation commit as the adoption. If the tab's host never takes
   it within a second, the old park-and-take path runs.
 - **Chrome fades on its own.** The card's bar, backdrop and rims follow the card's scale but fade by their own curve.
+- **The toolbar fades to the tab's colour while the card grows.** When Open as Tab starts (the button, ⌘O or a spread
+  pinch past the open threshold), the window's toolbar and bookmarks bar take the Peek tab's palette
+  (`state/peek/toolbarPreview.ts`, read by `useSitePalette`) and ease into it with their usual 150 ms fade, so the
+  colour is already right when the tab takes over. The preview ends at the hand-over, when the promote is refused, or
+  when the Peek unmounts.
 - **Pinch stays inside the window.** The spread follows the fingers up to 80 % of the way, then eases into exactly the
   tab's size with no overshoot; the card is clipped to the content area with its corner radius.
 - **Genie, both ways.** Each mesh row moves straight between its place on the card and its place in the link's
@@ -30,7 +35,7 @@ is already laid out at the size it will have as a tab.
   by [DiaTweaks](https://github.com/JaceThings/DiaTweaks)' Peek. The rows' responses are staggered by the link's height on the card: 0.2 s at the middle row (0.17 s closing), from
   0.5× to 1.5× toward the edges, the rows nearest the link slowest on the way out and fastest on the way back in, and the
   stagger fades to nothing as the link nears the card's middle (75 % strength below it). An edge link bends the card
-  like the Dock's Genie, a centred one zooms straight out, and no row ever passes another, so nothing folds. The card is
+  like the Dock's Genie, a centred one zooms straight out, and no row ever passes another (each row's height is held at or below the next row's, since staggered springs alone can cross by a few points for links inside the card), so nothing folds. The card is
   opaque throughout the entrance; closing fades it as its last row nears the link. The scrim follows a 0.26 s spring.
   Close plays from whatever is on screen (a pinched card, a half-finished entrance), so pinch-in, ×, ⌘W and Escape all
   shrink back into the link.

@@ -17,6 +17,7 @@ import { peekGeometry } from "./peekGeometry";
 import { usePeekPageTop } from "./usePeekPageTop";
 import { SMALL_BAR_HEIGHT } from "../../state/windows/small";
 import { switchOn } from "../../state/app/switches";
+import { endPeekToolbarPreview, previewPeekToolbar } from "../../state/peek/toolbarPreview";
 
 let generations = 0;
 
@@ -98,6 +99,8 @@ function PeekCard({
     return () => void (live = false);
   }, []);
 
+  useEffect(() => () => endPeekToolbarPreview(windowId, peek.tabId), []);
+
   const known = reduce !== null;
   useEffect(() => {
     if (!known) return;
@@ -132,7 +135,11 @@ function PeekCard({
       meshAllowed={meshAllowed}
       style={StyleSheet.absoluteFill}
       onPeekState={onState}
-      onPeekPinch={({ generation: g, outcome }) => g === generation && outcome !== "stay" && notePinch("peek", outcome)}
+      onPeekPinch={({ generation: g, outcome }) => {
+        if (g !== generation || outcome === "stay") return;
+        if (outcome === "open") previewPeekToolbar(windowId, peek.tabId, peek.sourceId);
+        notePinch("peek", outcome);
+      }}
       onPeekDone={({ generation: g, outcome }) => {
         if (g !== generation || seen.current.done) return;
         seen.current.done = true;
