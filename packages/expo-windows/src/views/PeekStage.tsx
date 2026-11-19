@@ -5,6 +5,7 @@ const STEP_MS = 150;
 const START_SCALE = 0.12;
 const GROW_OMEGA = (2 * Math.PI) / 0.2;
 const GROW = { stiffness: GROW_OMEGA * GROW_OMEGA, damping: 2 * 0.9 * GROW_OMEGA, mass: 1, overshootClamping: true, restDisplacementThreshold: 0.001, restSpeedThreshold: 0.01 };
+const HIDDEN = { display: "none" } as const;
 const NATIVE_DRIVER = true;
 
 type Phase = "waiting" | "entering" | "open" | "closing" | "promoting" | "finished";
@@ -110,7 +111,7 @@ export const PeekStage = forwardRef<unknown, Props>(function PeekStage({ geometr
 
   return (
     <View {...rest} style={style} pointerEvents="box-none">
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: dim }]} pointerEvents={full ? "none" : "box-none"}>
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: dim }, full && HIDDEN]} pointerEvents="box-none">
         {scrim}
       </Animated.View>
       <Animated.View
@@ -118,7 +119,7 @@ export const PeekStage = forwardRef<unknown, Props>(function PeekStage({ geometr
         style={{ position: "absolute", left: card.x, top: card.y, width: card.width, height: card.height, opacity: cardOpacity, transform: [{ translateX }, { translateY }, { scaleX }, { scaleY }] }}
       >
         <View pointerEvents="box-none" style={{ position: "absolute", left: -card.x, top: -card.y, width, height }}>
-          <View style={[StyleSheet.absoluteFill, full && { opacity: 0 }]} pointerEvents={full ? "none" : "box-none"}>
+          <View style={[StyleSheet.absoluteFill, full && HIDDEN]} pointerEvents="box-none">
             {chrome !== undefined && zoomed(chrome)}
           </View>
           {page !== undefined && layer(zoomed(page))}
