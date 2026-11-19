@@ -155,23 +155,26 @@ function PeekCard({
   );
 
   const known = reduce !== null;
+  const [started, setStarted] = useState(false);
   useEffect(() => {
-    if (!known || !shown || donor) return;
-    if (!begun.current) {
-      begun.current = true;
-      const animated = !openedBefore.current;
-      const start = (tries: number) =>
-        void (stage.current?.begin(generation, animated) ?? Promise.resolve(false)).then((started) => {
-          if (!started && tries > 0 && begun.current) setTimeout(() => start(tries - 1), BEGIN_RETRY_MS);
-        });
-      start(BEGIN_RETRIES);
-    }
+    if (!known || !shown || donor || begun.current) return;
+    begun.current = true;
+    const animated = !openedBefore.current;
+    const start = (tries: number) =>
+      void (stage.current?.begin(generation, animated) ?? Promise.resolve(false)).then((ok) => {
+        if (ok && begun.current) setStarted(true);
+        else if (!ok && tries > 0 && begun.current) setTimeout(() => start(tries - 1), BEGIN_RETRY_MS);
+      });
+    start(BEGIN_RETRIES);
+  }, [known, shown]);
+  useEffect(() => {
+    if (!started || !shown || donor) return;
     return registerPeekMotion(windowId, {
       tabId: peek.tabId,
       close: () => stage.current?.close(generation) ?? Promise.resolve(false),
       promote: () => stage.current?.promote(generation) ?? Promise.resolve(false),
     });
-  }, [known, shown]);
+  }, [started, shown]);
 
   const onState = (state: PeekStageState) => {
     if (state.generation !== generation) return;
