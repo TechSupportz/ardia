@@ -28,17 +28,23 @@ extension PeekStage {
     let through = settlesEntrance(event, at: p)
     guard let window, mapsInput else { return nil }
     let shown = through.map { _ in true } ?? lastFrame.shownPage.contains(p)
+    var mapping = through ?? lastFrame.page
     switch event.type {
     case .leftMouseDown, .rightMouseDown, .otherMouseDown:
       pressInPage = shown && owns(windowPoint, in: window)
+      pressMapping = pressInPage ? through : nil
       guard pressInPage else { return nil }
     case .leftMouseDragged, .rightMouseDragged, .otherMouseDragged, .leftMouseUp, .rightMouseUp, .otherMouseUp:
       guard pressInPage else { return nil }
-      if event.type == .leftMouseUp || event.type == .rightMouseUp || event.type == .otherMouseUp { pressInPage = false }
+      mapping = pressMapping ?? mapping
+      if event.type == .leftMouseUp || event.type == .rightMouseUp || event.type == .otherMouseUp {
+        pressInPage = false
+        pressMapping = nil
+      }
     default:
       guard shown, owns(windowPoint, in: window) else { return nil }
     }
-    let target = convert((through ?? lastFrame.page).inverse.apply(p), to: nil)
+    let target = convert(mapping.inverse.apply(p), to: nil)
     guard let mapped = PeekInputRoute.moved(event, to: target, in: window) else { return nil }
     PeekInputRoute.routed = PeekInputRoute.Routed(stage: self, point: target, timestamp: event.timestamp)
     return mapped

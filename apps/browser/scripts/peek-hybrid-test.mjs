@@ -38,7 +38,7 @@ const rows = Array.from({ length: 160 }, (_, i) => `<div class=row>row ${i}</div
 const PAGE = `<!doctype html><title>peek target</title><style>body{margin:0;font:16px system-ui;background:#3a7}.row{height:40px;border-bottom:1px solid #ccc}#hit{position:fixed;left:200px;top:140px;width:180px;height:120px;background:#4a7}</style>
 <input id=f><div id=hit></div><audio id=a muted src="/tone.wav"></audio>${rows}
 <script>window.__nonce=Math.random().toString(36).slice(2);window.__resizes=0;window.__sizes=[];addEventListener("resize",()=>{__resizes++;__sizes.push([innerWidth,innerHeight,performance.now()])});window.__vis=[];document.addEventListener("visibilitychange",()=>__vis.push([document.visibilityState,performance.now()]));window.__over=[];addEventListener("mouseover",e=>__over.push(e.target.id),true);window.__wheel=[];addEventListener("wheel",e=>__wheel.push([e.clientX,e.clientY,e.deltaY]),true);
-window.__clicks=[];addEventListener("mousedown",e=>__clicks.push({x:e.clientX,y:e.clientY,target:e.target.id}),true);</script>`;
+window.__clicks=[];addEventListener("mousedown",e=>__clicks.push({x:e.clientX,y:e.clientY,target:e.target.id}),true);window.__ups=[];addEventListener("mouseup",e=>__ups.push({x:e.clientX,y:e.clientY}),true);window.__domClicks=0;addEventListener("click",()=>__domClicks++,true);</script>`;
 const SOURCE = `<!doctype html><title>peek source</title><body style="margin:0;font:16px system-ui"><p style="margin:80px">source <a id=l href="/page.html">link</a></p>`;
 const server = createServer((req, res) => {
   const path = (req.url ?? "/").split("?")[0];
@@ -521,11 +521,31 @@ try {
       assert.equal(out.tabs, 2);
     });
   }
+  if (wanted("press-during-zoom")) {
+    await start({ peekMesh: "unavailable", peekSlow: "10" });
+    await check("press-during-zoom", async (record) => {
+      const s = await run(`open("pz"); return until((x) => x.phase === "entering" && x.trace.at(-1).page[0] > 0.5, 4000).then(summary);`);
+      const [k, tx, ty] = s.trace.at(-1).page, g = s.geometry.page, o = s.stageInWindow;
+      const at = { x: o.x + tx + k * (g.x + g.width / 2), y: o.y + ty + k * (g.y + g.height / 2) };
+      await run(`return ac.shell.devClick("w1", { x: ${at.x}, y: ${at.y}, queued: true, wait: 60 });`);
+      const done = await waitFor((x) => x.phase === "open", 3000);
+      await sleep(300);
+      const page = await app.page("page.html?n=pz");
+      const seen = await page.eval(`({ down: __clicks.at(-1) ?? null, up: __ups.at(-1) ?? null, clicks: __domClicks })`);
+      page.close();
+      Object.assign(record, { entrance: s.entrance, phase: s.phase, settled: done.events.some((e) => e.event === "settled"), seen });
+      assert.equal(s.entrance, "affine");
+      assert.equal(s.phase, "entering", "the press landed during the zoom");
+      assert.ok(seen.down && seen.up, "the page saw the press and its release");
+      assert.deepEqual([seen.up.x, seen.up.y], [seen.down.x, seen.down.y], "the release lands where the press did");
+      assert.equal(seen.clicks, 1, "the page got one click");
+    });
+  }
 } finally {
   writeFileSync(join(scratch, "peek-hybrid.json"), JSON.stringify(artifact, null, 1));
   rep.say(`artifact: ${join(scratch, "peek-hybrid.json")}`);
   await app?.quit().catch(() => {});
   server.close();
-  if (!keep) for (const d of ["data-default", "data-peekMesh", "data-peekReady", "data-peekReduceMotion", "data-switch"]) rmSync(join(scratch, d), { recursive: true, force: true });
+  if (!keep) for (const d of ["data-default", "data-peekMesh", "data-peekReady", "data-peekReduceMotion", "data-switch", "data-peekMesh-peekSlow"]) rmSync(join(scratch, d), { recursive: true, force: true });
 }
 process.exit(rep.summary() ? 0 : 1);

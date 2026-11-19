@@ -27,6 +27,7 @@ final class PeekStage: ExpoView {
   private var meshFailure: String?
   private var meshShown = false
   var pressInPage = false
+  var pressMapping: PeekAffine?
   private var donorWatch: CFRunLoopObserver?
   private(set) var lastFrame = PeekFrame()
   private(set) var trace: [[String: Any]] = []
