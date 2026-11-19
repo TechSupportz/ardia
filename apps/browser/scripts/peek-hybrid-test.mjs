@@ -442,11 +442,14 @@ try {
     const page = await app.page("page.html?n=fse");
     await page.eval(`document.documentElement.requestFullscreen().then(() => true, (e) => String(e))`, { userGesture: true });
     const full = await waitFor((x) => x.trace.at(-1)?.page[0] === 1 && x.trace.at(-1)?.chrome === 0, 4000);
+    const entered = await page.eval(`!!document.fullscreenElement`);
     await page.eval(`document.exitFullscreen().then(() => true, (e) => String(e))`);
     page.close();
     await sleep(800);
     const last = full.trace.at(-1);
-    Object.assign(record, { last, layerHasMesh: full.layerHasMesh });
+    Object.assign(record, { last, entered, layerHasMesh: full.layerHasMesh });
+    assert.equal(entered, true, "the page went full screen");
+    assert.deepEqual([last.page[0], last.chrome, last.scrim], [1, 0, 0], "full-screen frame");
     assert.equal(last.warping, false);
     assert.equal(full.layerHasMesh, false, "no mesh left on the card");
   });
