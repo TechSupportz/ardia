@@ -26,6 +26,8 @@ import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { endPeekToolbarPreview, previewPeekToolbar } from "../../state/peek/toolbarPreview";
 
 const SIDE_GAP = space.m;
+const BEGIN_RETRIES = 30;
+const BEGIN_RETRY_MS = 16;
 const SIDE_ROOM = SMALL_BAR_BUTTON + 2 * SIDE_GAP;
 
 let generations = 0;
@@ -144,14 +146,25 @@ function PeekCard({
     return () => void (live = false);
   }, []);
 
-  useEffect(() => () => endPeekToolbarPreview(windowId, peek.tabId), []);
+  useEffect(
+    () => () => {
+      begun.current = false;
+      endPeekToolbarPreview(windowId, peek.tabId);
+    },
+    [],
+  );
 
   const known = reduce !== null;
   useEffect(() => {
     if (!known || !shown || donor) return;
     if (!begun.current) {
       begun.current = true;
-      void stage.current?.begin(generation, !openedBefore.current);
+      const animated = !openedBefore.current;
+      const start = (tries: number) =>
+        void (stage.current?.begin(generation, animated) ?? Promise.resolve(false)).then((started) => {
+          if (!started && tries > 0 && begun.current) setTimeout(() => start(tries - 1), BEGIN_RETRY_MS);
+        });
+      start(BEGIN_RETRIES);
     }
     return registerPeekMotion(windowId, {
       tabId: peek.tabId,
