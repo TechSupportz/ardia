@@ -55,7 +55,12 @@ const focusSoon = (windowId: string, tabId: string) =>
 
 export function promotePeekNow(windowId: string, tabId: string) {
   const peek = shownPeek(store(), windowId);
-  if (peek?.tabId !== tabId) return endPeekToolbarPreview(windowId, tabId);
+  if (peek?.tabId !== tabId) {
+    endPeekToolbarPreview(windowId, tabId);
+    const sourceId = peekSourceOf(store(), tabId);
+    if (sourceId) store().peekToTab(windowId, { activate: false, sourceId });
+    return;
+  }
   if (PLATFORM_FEATURES.nativePeekMotion) holdPeekDonor(windowId, tabId, peek.sourceId);
   const id = store().peekToTab(windowId, { sourceId: peek.sourceId });
   endPeekToolbarPreview(windowId, tabId);
