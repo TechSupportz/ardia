@@ -17,6 +17,7 @@ import { notePageOverlay } from "../telemetry/usage";
 import { holdPeekDonor } from "./donors";
 import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { endPeekToolbarPreview, previewPeekToolbar } from "./toolbarPreview";
+import { revealToolbar } from "../windows/toolbarAutoHide";
 
 const store = () => useBrowser.getState();
 type PeekMotionHandle = { tabId: string; close: () => Promise<boolean>; promote: () => Promise<boolean> };
@@ -62,6 +63,7 @@ export function promotePeekNow(windowId: string, tabId: string) {
     return;
   }
   if (PLATFORM_FEATURES.nativePeekMotion) holdPeekDonor(windowId, tabId, peek.sourceId);
+  revealToolbar(tabId);
   const id = store().peekToTab(windowId, { sourceId: peek.sourceId });
   endPeekToolbarPreview(windowId, tabId);
   if (!id) return;
