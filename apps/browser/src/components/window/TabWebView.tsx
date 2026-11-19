@@ -52,7 +52,7 @@ import { isAdoptKind } from "../../state/tabs/adoptIds";
 import { firstPagePending, isBlankAddress, noteFirstPagePending, reportedAddress, reportedTitle } from "../../state/tabs/pendingAddress";
 import { STATUS_FLIP_BAND } from "./tokens";
 import { startHidingElement } from "../../state/site/hiddenElements";
-import { notePeekRecipient, peekDonorTaken } from "../../state/peek/donors";
+import { forgetPeekHandover, notePeekRecipient, peekDonorTaken } from "../../state/peek/donors";
 import { promotedFromPeek } from "../../state/peek/actions";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
@@ -114,7 +114,7 @@ function EngineWebView({ tabId, visible, selected = true, warm, peekOf, engine }
   useEffect(() => {
     persistEngine(tabId, engine);
     return () => {
-      if (handedToTab()) return;
+      if (handedToTab()) return forgetPeekHandover(tabId);
       noteGone(tabId);
       noteFirstPagePending(tabId, false);
       forgetUnreadIfGone(tabId);

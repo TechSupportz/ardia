@@ -6,6 +6,8 @@ const DONOR_TIMEOUT_MS = 1000;
 
 export const usePeekDonors = create<Record<string, PeekDonor>>()(() => ({}));
 
+const handedOver = new Set<string>();
+
 const windowOf = (tabId: string) => Object.entries(usePeekDonors.getState()).find(([, d]) => d.tabId === tabId)?.[0];
 
 export function releasePeekDonor(windowId: string, tabId: string) {
@@ -25,8 +27,11 @@ export function notePeekRecipient(tabId: string) {
   const windowId = windowOf(tabId);
   if (!windowId) return;
   const donor = usePeekDonors.getState()[windowId]!;
+  handedOver.add(tabId);
   usePeekDonors.setState({ ...usePeekDonors.getState(), [windowId]: { ...donor, taken: true } }, true);
   setTimeout(() => releasePeekDonor(windowId, tabId), 0);
 }
 
-export const peekDonorTaken = (tabId: string) => Object.values(usePeekDonors.getState()).some((d) => d.tabId === tabId && d.taken);
+export const peekDonorTaken = (tabId: string) => handedOver.has(tabId);
+
+export const forgetPeekHandover = (tabId: string) => void handedOver.delete(tabId);
