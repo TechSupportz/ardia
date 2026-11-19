@@ -86,34 +86,31 @@ export const PeekStage = forwardRef<unknown, Props>(function PeekStage({ geometr
     </View>
   );
 
-  if (!geometry || geometry.fullscreen) {
-    return (
-      <View {...rest} style={style} pointerEvents="box-none">
-        {page !== undefined && layer(page)}
-      </View>
-    );
-  }
-
-  const { card, source, width, height } = geometry;
+  const full = !geometry || geometry.fullscreen;
+  const width = geometry?.width ?? 0;
+  const height = geometry?.height ?? 0;
+  const card = full ? { x: 0, y: 0, width, height } : geometry.card;
+  const source = geometry?.source ?? card;
   const centerX = card.x + card.width / 2;
   const centerY = card.y + card.height / 2;
   const fromX = source.x + source.width / 2;
   const fromY = source.y + source.height / 2;
+  const still = fade || full;
   const grown = (to: number) => progress.interpolate({ inputRange: [0, 1], outputRange: [START_SCALE, to] });
-  const scaleX = fade ? 1 : Animated.multiply(grown(1), expand.interpolate({ inputRange: [0, 1], outputRange: [1, width / Math.max(card.width, 1)] }));
-  const scaleY = fade ? 1 : Animated.multiply(grown(1), expand.interpolate({ inputRange: [0, 1], outputRange: [1, height / Math.max(card.height, 1)] }));
-  const translateX = fade
+  const scaleX = still ? 1 : Animated.multiply(grown(1), expand.interpolate({ inputRange: [0, 1], outputRange: [1, width / Math.max(card.width, 1)] }));
+  const scaleY = still ? 1 : Animated.multiply(grown(1), expand.interpolate({ inputRange: [0, 1], outputRange: [1, height / Math.max(card.height, 1)] }));
+  const translateX = still
     ? 0
     : Animated.add(progress.interpolate({ inputRange: [0, 1], outputRange: [fromX - centerX, 0] }), expand.interpolate({ inputRange: [0, 1], outputRange: [0, width / 2 - centerX] }));
-  const translateY = fade ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [fromY - centerY, 0] });
-  const cardOpacity = fade ? progress : progress.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 1, 1] });
-  const dim = Animated.multiply(progress, expand.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }));
+  const translateY = still ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [fromY - centerY, 0] });
+  const cardOpacity = full ? 1 : fade ? progress : progress.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 1, 1] });
+  const dim = full ? 0 : Animated.multiply(progress, expand.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }));
   const tabScale = expand.interpolate({ inputRange: [0, 1], outputRange: [1, (width / Math.max(card.width, 1) + height / Math.max(card.height, 1)) / 2] });
-  const zoomed = (child: ReactNode) => (isValidElement<{ zoom?: unknown }>(child) ? cloneElement(child, { zoom: { toTab: expand, grown: tabScale } }) : child);
+  const zoomed = (child: ReactNode) => (!full && isValidElement<{ zoom?: unknown }>(child) ? cloneElement(child, { zoom: { toTab: expand, grown: tabScale } }) : child);
 
   return (
     <View {...rest} style={style} pointerEvents="box-none">
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: dim }]} pointerEvents="box-none">
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: dim }]} pointerEvents={full ? "none" : "box-none"}>
         {scrim}
       </Animated.View>
       <Animated.View
@@ -121,7 +118,9 @@ export const PeekStage = forwardRef<unknown, Props>(function PeekStage({ geometr
         style={{ position: "absolute", left: card.x, top: card.y, width: card.width, height: card.height, opacity: cardOpacity, transform: [{ translateX }, { translateY }, { scaleX }, { scaleY }] }}
       >
         <View pointerEvents="box-none" style={{ position: "absolute", left: -card.x, top: -card.y, width, height }}>
-          {chrome !== undefined && layer(zoomed(chrome))}
+          <View style={[StyleSheet.absoluteFill, full && { opacity: 0 }]} pointerEvents={full ? "none" : "box-none"}>
+            {chrome !== undefined && zoomed(chrome)}
+          </View>
           {page !== undefined && layer(zoomed(page))}
         </View>
       </Animated.View>
