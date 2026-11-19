@@ -82,6 +82,28 @@ public class PeekStageModule: Module {
       #endif
     }.runOnQueue(.main)
 
+    AsyncFunction("devPostButton") { (windowId: String, x: Double, y: Double, button: Int) -> [String: Any] in
+      #if DEBUG
+      guard let window = WindowManager.shared.window(windowId), let content = window.contentView else { return ["error": "no window"] }
+      let point = content.convert(SyntheticInput.contentPoint(x: x, top: y, in: content), to: nil)
+      var posted: [Int] = []
+      for type in [NSEvent.EventType.otherMouseDown, .otherMouseUp] {
+        guard let base = NSEvent.mouseEvent(
+          with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+          windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: type == .otherMouseDown ? 1 : 0),
+          let cg = base.cgEvent?.copy() else { return ["error": "no event"] }
+        cg.setIntegerValueField(.mouseEventButtonNumber, value: Int64(button))
+        guard let ns = NSEvent(cgEvent: cg) else { return ["error": "no NSEvent"] }
+        posted.append(ns.buttonNumber)
+        posted.append(ns.window === window ? 1 : 0)
+        NSApp.postEvent(ns, atStart: false)
+      }
+      return ["posted": posted]
+      #else
+      return ["error": "DEV builds only"]
+      #endif
+    }.runOnQueue(.main)
+
     View(PeekStage.self) {
       Prop("geometry") { (view: PeekStage, geometry: [String: Any]) in view.setGeometry(geometry) }
       Prop("reduceMotion") { (view: PeekStage, on: Bool) in view.reduceMotion = on }

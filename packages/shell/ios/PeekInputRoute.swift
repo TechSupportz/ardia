@@ -34,9 +34,15 @@ enum PeekInputRoute {
     switch event.type {
     case .leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp, .rightMouseDragged,
          .otherMouseDown, .otherMouseUp, .otherMouseDragged, .mouseMoved:
-      return NSEvent.mouseEvent(
+      guard let rebuilt = NSEvent.mouseEvent(
         with: event.type, location: windowPoint, modifierFlags: event.modifierFlags, timestamp: event.timestamp,
         windowNumber: window.windowNumber, context: nil, eventNumber: event.eventNumber, clickCount: event.clickCount, pressure: event.pressure)
+      else { return nil }
+      guard let original = event.cgEvent, let copy = rebuilt.cgEvent?.copy() else { return rebuilt }
+      for field in [CGEventField.mouseEventButtonNumber, .mouseEventDeltaX, .mouseEventDeltaY, .mouseEventSubtype] {
+        copy.setIntegerValueField(field, value: original.getIntegerValueField(field))
+      }
+      return NSEvent(cgEvent: copy) ?? rebuilt
     default:
       guard let copy = event.cgEvent?.copy() else { return nil }
       let screen = window.convertPoint(toScreen: windowPoint)
