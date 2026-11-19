@@ -415,6 +415,19 @@ try {
     near(last.y, hit.y, 2, "page y");
   });
 
+  await check("wheel-during-warp", async (record) => {
+    await closeAll();
+    const out = await run(`open("ww"); return until((x) => x.phase === "entering", 2000).then((s) => { const o = s.stageInWindow, r = s.geometry.rest;
+      return globalThis.expo.modules.ArdiaPeekStage.devPostScroll("w1", o.x + r.x + r.width / 2, o.y + r.y + r.height / 2, -120).then(() => settle(60)).then(stage)
+        .then((after) => ({ entrance: s.entrance, phase: after.phase, settled: after.events.some((e) => e.event === "settled"), peek: !!st().peeks.a })); });`);
+    record.state = out;
+    assert.equal(out.peek, true);
+    if (out.entrance === "genie") {
+      assert.equal(out.settled, true, "a wheel over the page during the warp ended the entrance");
+      assert.equal(out.phase, "open");
+    }
+  });
+
   await check("fullscreen", async (record) => {
     await closeAll();
     await run(`open("fs"); return 0;`);
