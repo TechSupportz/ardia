@@ -1,29 +1,36 @@
 import { breadcrumb } from "@ardia/core";
-import { WindowBackdrop, ink, PageCoverGate, Panel, PeekStage, reduceMotion, reduceMotionKnown, type PeekStageHandle, type PeekStageState } from "../ui";
+import { Button, WindowBackdrop, ink, PageCoverGate, Panel, PeekStage, reduceMotion, reduceMotionKnown, type PeekStageHandle, type PeekStageState } from "../ui";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useCardFrame } from "../window/cardFrame";
 import { usePeekSplitFull, useWindowPeeks } from "../../state/peek/hooks";
 import { usePeekDonors } from "../../state/peek/donors";
-import { useActiveTabId, useTab } from "../../state/browser/hooks";
+import { useActiveTabId, useSettings, useTab } from "../../state/browser/hooks";
 import { useFullscreenTab } from "../../state/tabs/pageState";
 import type { Peek } from "../../state/peek/peek";
 import { PEEK_SCRIM } from "./tokens";
-import { PageLabel, SMALL_INSET, SMALL_WINDOW_FRAME, SmallBar, smallWindowRadius, type SmallBarButton } from "../littleArdia/SmallChrome";
+import { PageLabel, SMALL_BAR_BUTTON, SMALL_INSET, SMALL_WINDOW_FRAME, SmallBar, smallWindowRadius, type SmallBarButton } from "../littleArdia/SmallChrome";
 import { dismissPeek, finishPeek, openPeekAsTab, openPeekInSplit, promotePeekNow, registerPeekMotion } from "../../state/peek/actions";
 import { keyText } from "../../state/commands/keyText";
 import { splitViewAvailable } from "../../state/splits/splits";
 import { notePinch } from "../../state/telemetry/usage";
 import { notePeekDone, notePeekEntrance, notePeekInterrupt } from "../../state/telemetry/peekMotion";
 import { peekGeometry, type PeekRect } from "./peekGeometry";
+import { shadow, space } from "../ui/tokens";
+import type { PeekButtons } from "../../state/settings/settings";
 import { usePeekPageTop } from "./usePeekPageTop";
 import { SMALL_BAR_HEIGHT } from "../../state/windows/small";
 import { switchOn } from "../../state/app/switches";
 import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { endPeekToolbarPreview, previewPeekToolbar } from "../../state/peek/toolbarPreview";
 
+const SIDE_GAP = space.m;
+const SIDE_ROOM = SMALL_BAR_BUTTON + 2 * SIDE_GAP;
+
 let generations = 0;
+
+const sideRoomFor = (buttons: PeekButtons) => ({ left: buttons === "left" ? SIDE_ROOM : 0, right: buttons === "right" ? SIDE_ROOM : 0 });
 
 function peekButtonList(windowId: string, splitFull: boolean): SmallBarButton[] {
   return [
@@ -100,6 +107,7 @@ function PeekCard({
 }) {
   const theme = useTheme();
   const card = useCardFrame();
+  const buttons = useSettings((s) => s.peekButtons);
   const [reduce, setReduce] = useState<boolean | null>(() => reduceMotion());
   const [generation] = useState(() => ++generations);
   const stage = useRef<PeekStageHandle>(null);
@@ -110,6 +118,7 @@ function PeekCard({
   const pageTop = usePeekPageTop(windowId, peek.tabId);
   const fromX = peek.from && origin ? peek.from.x - origin.x : null;
   const fromY = peek.from && origin ? peek.from.y - origin.y : null;
+  const sideRoom = sideRoomFor(buttons);
   const geometry = useMemo(
     () =>
       peekGeometry({
@@ -123,8 +132,9 @@ function PeekCard({
         from: fromX === null || fromY === null ? null : { x: fromX, y: fromY },
         fullscreen,
         pageAtTabSize: PLATFORM_FEATURES.nativePeekMotion,
+        sideRoom,
       }),
-    [width, height, pageTop, card.inset, card.radius, fromX, fromY, fullscreen],
+    [width, height, pageTop, card.inset, card.radius, fromX, fromY, fullscreen, sideRoom.left, sideRoom.right],
   );
 
   useEffect(() => {
@@ -194,8 +204,20 @@ function PeekCard({
               onPress={() => dismissPeek(windowId)}
               style={{ flex: 1, borderRadius: card.radius, backgroundColor: theme.dark ? PEEK_SCRIM.dark : PEEK_SCRIM.light }}
             />
+            {!fullscreen && buttons !== "top" && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: cardRect.y + (SMALL_BAR_HEIGHT - SMALL_BAR_BUTTON) / 2,
+                  left: buttons === "left" ? cardRect.x - SIDE_GAP - SMALL_BAR_BUTTON : cardRect.x + cardRect.width + SIDE_GAP,
+                  gap: SIDE_GAP,
+                }}
+              >
+                <PeekSideButtons windowId={windowId} />
+              </View>
+            )}
           </View>
-          <PeekCardChrome windowId={windowId} tabId={peek.tabId} rect={cardRect} browserRadius={card.radius} />
+          <PeekCardChrome windowId={windowId} tabId={peek.tabId} rect={cardRect} browserRadius={card.radius} withButtons={buttons === "top"} />
           <PeekPageLayer rect={pageRect} background={donor ? undefined : theme.card} browserRadius={card.radius}>
             {page(peek.tabId, peek.sourceId, pageRect.width, shown, fullscreen)}
           </PeekPageLayer>
@@ -207,7 +229,7 @@ function PeekCard({
 
 type PeekZoom = { toTab: Animated.Value; grown: Animated.AnimatedInterpolation<number> };
 
-function PeekCardChrome({ windowId, tabId, rect, browserRadius, zoom }: { windowId: string; tabId: string; rect: PeekRect; browserRadius: number; zoom?: PeekZoom }) {
+function PeekCardChrome({ windowId, tabId, rect, browserRadius, withButtons, zoom }: { windowId: string; tabId: string; rect: PeekRect; browserRadius: number; withButtons: boolean; zoom?: PeekZoom }) {
   const theme = useTheme();
   const windowFrame = theme.dark ? SMALL_WINDOW_FRAME.dark : SMALL_WINDOW_FRAME.light;
   const radius = smallWindowRadius();
@@ -224,7 +246,7 @@ function PeekCardChrome({ windowId, tabId, rect, browserRadius, zoom }: { window
         />
         <Animated.View style={{ flex: 1, borderRadius: corner, overflow: "hidden" }}>
           <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
-          <PeekBar windowId={windowId} tabId={tabId} />
+          <PeekBar windowId={windowId} tabId={tabId} withButtons={withButtons} />
         </Animated.View>
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: corner, borderWidth: StyleSheet.hairlineWidth, borderColor: windowFrame.innerRim }]} />
         <Animated.View
@@ -260,10 +282,22 @@ function PeekPageLayer({ rect, background, browserRadius, zoom, children }: { re
   );
 }
 
-function PeekBar({ windowId, tabId }: { windowId: string; tabId: string }) {
+function PeekSideButtons({ windowId }: { windowId: string }) {
+  const splitFull = usePeekSplitFull(windowId);
+  return peekButtonList(windowId, splitFull)
+    .reverse()
+    .map((b) => (
+      <View key={b.tooltip} style={{ width: SMALL_BAR_BUTTON, height: SMALL_BAR_BUTTON }}>
+        <Panel radius={SMALL_BAR_BUTTON / 2} shadow={shadow.tooltip} style={StyleSheet.absoluteFill} />
+        <Button variant="icon" look="row" icon={b.icon} box={SMALL_BAR_BUTTON} capsule disabled={b.disabled} tooltip={b.tooltip} onPress={b.onPress} />
+      </View>
+    ));
+}
+
+function PeekBar({ windowId, tabId, withButtons }: { windowId: string; tabId: string; withButtons: boolean }) {
   const tab = useTab(tabId);
   const splitFull = usePeekSplitFull(windowId);
   if (!tab) return null;
   const host = tab.url ? breadcrumb(tab.url).host : "";
-  return <SmallBar fieldLeft={SMALL_INSET} field={<PageLabel tab={tab} label={host ? `Peek: ${host}` : "Peek"} />} buttons={peekButtonList(windowId, splitFull)} />;
+  return <SmallBar fieldLeft={SMALL_INSET} field={<PageLabel tab={tab} label={host ? `Peek: ${host}` : "Peek"} />} buttons={withButtons ? peekButtonList(windowId, splitFull) : []} />;
 }

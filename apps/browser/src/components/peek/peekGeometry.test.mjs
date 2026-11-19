@@ -11,6 +11,18 @@ test("off the Mac the card is main's frame, 5.5 % inset each side, and the page 
   assert.deepEqual(g.page, g.rest);
 });
 
+test("off the Mac, side buttons push the frame in on their side only", () => {
+  const g = peekGeometry(input({ pageAtTabSize: false, sideRoom: { left: 0, right: 100 } }));
+  assert.equal(g.card.x, 66);
+  assert.equal(g.card.width, 1200 - 66 - 100);
+});
+
+test("on the Mac, side buttons keep the card clear of them and centred in what is left", () => {
+  const g = peekGeometry(input({ sideRoom: { left: 100, right: 0 } }));
+  assert.ok(g.card.x >= 100);
+  assert.ok(Math.abs(g.card.x - 100 - (1200 - 66 - (g.card.x + g.card.width))) < 1e-9);
+});
+
 test("on the Mac the page keeps its tab size and the card fits it at one scale", () => {
   const g = peekGeometry(input());
   assert.deepEqual(g.page, { x: 0, y: 44, width: 1200, height: 756 });
