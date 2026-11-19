@@ -24,8 +24,12 @@ extension PeekStage {
   }
 
   func remap(_ event: NSEvent, at windowPoint: NSPoint) -> NSEvent? {
-    guard let window, mapsInput else { return nil }
     let p = convert(windowPoint, from: nil)
+    if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type), !isHiddenOrHasHiddenAncestor, gestures,
+       motion.phase == .waiting || motion.phase == .entering, !motion.geometry.fullscreen, motion.geometry.rest.contains(p) {
+      settleEntrance()
+    }
+    guard let window, mapsInput else { return nil }
     switch event.type {
     case .leftMouseDown, .rightMouseDown, .otherMouseDown:
       pressInPage = lastFrame.shownPage.contains(p) && owns(windowPoint, in: window)

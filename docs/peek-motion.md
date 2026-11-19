@@ -57,8 +57,10 @@ is already laid out at the size it will have as a tab.
   fingers.
 - **Input.** Core Animation transforms don't move AppKit's geometry, so while the page is scaled the stage maps mouse
   events through the inverse of what is on screen before Chrome sees them. A wheel event that can't be rebuilt with its
-  window goes through the hit-test route instead (it reaches the page, at the unscaled point). During the warp the card
-  takes no clicks; pinch and Escape still work. The magnify monitor is installed by the stage itself.
+  window goes through the hit-test route instead (it reaches the page, at the unscaled point). A press while the card is
+  still opening, where the page will be at rest, ends the entrance at once (the card snaps to rest) and reaches the page;
+  a press anywhere else on the warping card is swallowed, so opening never delays the
+  page being usable; pinch and Escape interrupt it as before. The magnify monitor is installed by the stage itself.
 - **Readiness.** `begin` waits for the page's compositor layers to be attached (`-[ArdiaWebView showsPaintedFrame]`,
   polled each display frame; this is layer presence, not a renderer acknowledgement of a presented frame), at most
   150 ms; then the entrance plays anyway over the card's own colour.
@@ -92,7 +94,7 @@ that catches it. Every check writes its geometry, identity and frame trace to th
 | P13 | The Genie path calls the private API with the wrong layout or crashes on failure | crash, or a warp drawn wrong | `fallback`: `ARDIA_TEST=peekMesh=unavailable` and `peekMesh=throws` both play `affine`, report the reason, and still open, pinch and promote |
 | P14 | A page that never paints holds the Peek invisible | nothing shows | `timeout`: `ARDIA_TEST=peekReady=never`: the entrance starts at 150 ms ± one frame |
 | P15 | Reduced motion still scales or moves | a trace frame with scale ≠ rest or translation during entrance or close | `reduced`: entrance and close change only opacity; promote jumps once and fades the chrome |
-| P16 | Clicks during the warp reach the page, or clicks at rest land at the wrong spot | the page records a click during the entrance, or at the wrong coordinates at rest | `input`: a click during the warp is swallowed; a click at rest on a target's shown centre hits that target in the page |
+| P16 | A click during the warp waits for the Genie, or clicks at rest land at the wrong spot | the page takes a click later than main's Peek did, or at the wrong coordinates at rest | `input`: a click during the warp ends the entrance and reaches the page; a click at rest on a target's shown centre hits that target in the page |
 | P17 | A pinch or Esc during the warp is ignored | the Peek stays | `input`: Esc and a pinch-in during the entrance close it |
 | P18 | The delayed focus after promotion steals focus from a tab picked in between | another tab selected within 50 ms loses focus | `focus`: promote, select another tab at once: the promoted page doesn't take focus |
 | P19 | A stale `onPeekDone` after unmount closes a newer Peek or a tab | a later Peek closes on its own | covered by `replacement` and `race` (generation guard) |

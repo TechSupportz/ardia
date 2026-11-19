@@ -124,6 +124,14 @@ final class PeekStage: ExpoView {
     return true
   }
 
+  func settleEntrance() {
+    let now = CACurrentMediaTime()
+    guard motion.settleEntrance(at: now) else { return }
+    note("settled", [:])
+    render(at: now)
+    announce()
+  }
+
   func close(_ generation: Int) -> Bool { command(generation, "close") { motion.close(at: $0) } }
 
   func promote(_ generation: Int) -> Bool { command(generation, "promote") { motion.promote(at: $0) } }

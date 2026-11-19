@@ -120,6 +120,14 @@ final class PeekMotion {
     genieStart = now
   }
 
+  func settleEntrance(at now: Double) -> Bool {
+    guard phase == .waiting || phase == .entering, geometry.valid else { return false }
+    clock = now
+    interrupted = true
+    snapOpen(at: now)
+    return true
+  }
+
   func cancel() {
     phase = .finished
     outcome = nil

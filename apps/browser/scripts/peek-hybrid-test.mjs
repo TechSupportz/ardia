@@ -378,11 +378,14 @@ try {
 
   await check("input", async (record) => {
     await closeAll();
-    const warp = await run(`open("in"); return until((x) => x.phase === "entering", 2000).then((s) => { const o = s.stageInWindow, c = s.geometry.source;
-      return ac.shell.devClick("w1", { x: o.x + c.x + c.width / 2, y: o.y + c.y + c.height / 2, queued: true, wait: 30 }).then((r) => ({ r, phase: s.phase, entrance: s.entrance })); });`);
+    const warp = await run(`open("in"); return until((x) => x.phase === "entering", 2000).then((s) => { const o = s.stageInWindow, c = s.geometry.source, r = s.geometry.rest;
+      return ac.shell.devClick("w1", { x: o.x + c.x + c.width / 2, y: o.y + c.y + c.height / 2, queued: true, wait: 30 })
+        .then(() => stage()).then((off) => ({ offPhase: off.phase, offPeek: !!st().peeks.a }))
+        .then((off) => ac.shell.devClick("w1", { x: o.x + r.x + r.width / 2, y: o.y + r.y + r.height / 2, queued: true, wait: 30 }).then(() => stage()).then((on) => ({ ...off, onPhase: on.phase, phase: s.phase, entrance: s.entrance, settled: on.events.some((e) => e.event === "settled") }))); });`);
     const rest = await waitFor((s) => s.phase === "open");
     const page = await app.page("page.html?n=in");
     const during = await page.eval(`__clicks.length`);
+    await page.eval(`__clicks.length = 0`);
     const g = rest.geometry, k = restScale(g), o = rest.stageInWindow;
     const hit = { x: 200 + 90, y: 140 + 60 };
     const shown = { x: o.x + g.rest.x + hit.x * k, y: o.y + g.rest.y + hit.y * k };
@@ -399,7 +402,12 @@ try {
     Object.assign(record, { warp, during, click, clicks, shown, k, scrollAt, wheel, over });
     record.scrollNote = "a window-less synthetic wheel event can't be dispatched by AppKit; real wheel events are checked by hand";
     assert.ok(over.includes("hit"), `hover reached the target: ${JSON.stringify(over)}`);
-    if (warp.entrance === "genie") assert.equal(during, 0, "the click during the warp didn't reach the page");
+    assert.equal(warp.offPeek, true, "a press off the page during the warp leaves the Peek open");
+    if (warp.entrance === "genie" && warp.offPhase === "entering") {
+      assert.equal(warp.onPhase, "open", "a press over the page during the warp ends the entrance");
+      assert.equal(warp.settled, true);
+      assert.equal(during, 1, "only the press over the page reached it");
+    }
     const last = clicks.at(-1);
     assert.ok(last, "the click at rest reached the page");
     assert.equal(last.target, "hit");
