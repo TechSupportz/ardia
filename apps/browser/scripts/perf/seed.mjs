@@ -18,7 +18,7 @@ const WORDS = [
 const words = (n) => Array.from({ length: n }, () => pick(WORDS)).join(" ");
 const title = (n) => words(n).replace(/^\w/, (c) => c.toUpperCase());
 
-export function buildSeed(origin, appVersion = "", tabsOrigin = origin) {
+export function buildSeed(origin, appVersion = "", { tabsOrigin = origin, activeDelayMs = 0 } = {}) {
   const now = Date.now();
   const profiles = {
     default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 },
@@ -71,7 +71,8 @@ export function buildSeed(origin, appVersion = "", tabsOrigin = origin) {
   for (const [p, id] of Object.entries(active)) {
     const t = tabs.find((x) => x.id === id);
     t.lastActiveAt = now - 1000 * (p === "default" ? 1 : 2);
-    t.url = t.url.replace(tabsOrigin, origin);
+    const url = t.url.replace(tabsOrigin, origin);
+    t.url = activeDelayMs ? `${url}?d=${activeDelayMs}` : url;
   }
 
   const session = {
@@ -149,9 +150,9 @@ export function buildSeed(origin, appVersion = "", tabsOrigin = origin) {
   };
 }
 
-export function writeSeed(dir, origin, appVersion, tabsOrigin = origin) {
+export function writeSeed(dir, origin, appVersion, options) {
   mkdirSync(dir, { recursive: true });
-  for (const [name, value] of Object.entries(buildSeed(origin, appVersion, tabsOrigin))) {
+  for (const [name, value] of Object.entries(buildSeed(origin, appVersion, options))) {
     writeFileSync(join(dir, name), typeof value === "string" ? value : JSON.stringify(value));
   }
 }

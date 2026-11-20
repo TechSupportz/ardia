@@ -147,6 +147,7 @@ import { parseArgs } from "node:util";
 import { INJECTION_ENTITLEMENTS, prepareApp } from "../../../../scripts/lib/app-copy.mjs";
 import { appEnv, launchVariables, mergeLaunchEnv } from "../../../../scripts/lib/instance.mjs";
 import { buildSeed } from "./seed.mjs";
+import { waitForUboEngine } from "./ubo-cache.mjs";
 import { parseSettings, profileSeed } from "./profile-seed.mjs";
 import { writeSwitches } from "./js-bench.mjs";
 import { frameRows, frameTable, framesLibrary, framesRun } from "./frames-phase.mjs";
@@ -586,6 +587,7 @@ async function makeTemplate(side) {
       for (const id of s.windowOrder) if (id !== w) ac.store.getState().closeWindow(id);
       ac.store.getState().activate(keep); return keep;`);
     await sleep(4000);
+    await waitForUboEngine({ port: +opt.port, dataDir: dir, log });
   } finally {
     await app.quit();
   }

@@ -123,8 +123,7 @@ export const TabRow = memo(function TabRow({
             selected={active && !quiet}
             border={border}
             stroke={selected && !active ? tokens.multiSelectedStroke : undefined}
-            padLeft={(textOnly ? TAB_ROW.contentLeft - TAB_ROW.titleGap : TAB_ROW.contentLeft) - border}
-            padRight={TAB_ROW.trailing - border}
+            padLeft={textOnly ? TAB_ROW.contentLeft - TAB_ROW.titleGap : TAB_ROW.contentLeft}
           >
             <PreviewFade preview={preview}>
             <View {...(tab.pinnedUrl ? backToPin.hoverProps : null)} style={textOnly ? NO_SLOT : undefined}>
@@ -303,8 +302,8 @@ export const SplitRowItem = memo(function SplitRowItem({
           fill={active ? theme.tabSelected : hovered ? theme.tabHover : ink.clear}
           selected={active}
           border={splitBorder}
-          padLeft={SPLIT_PANE.inset - splitBorder}
-          padRight={SPLIT_PANE.inset - splitBorder}
+          padLeft={SPLIT_PANE.inset}
+          padRight={SPLIT_PANE.inset}
         >
           <PreviewFade preview={preview}>
             {tabIds.map((id, i) => (
