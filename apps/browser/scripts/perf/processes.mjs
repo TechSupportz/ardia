@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
 export function processTable() {
-  const out = spawnSync("ps", ["-axww", "-o", "pid=,ppid=,command="], { encoding: "utf8" }).stdout ?? "";
+  const out = spawnSync("ps", ["-A", "-ww", "-o", "pid=,ppid=,command="], { encoding: "utf8" }).stdout ?? "";
   return out.split("\n").map((line) => line.match(/^\s*(\d+)\s+(\d+)\s(.*)$/)).filter(Boolean)
     .map((m) => ({ pid: +m[1], ppid: +m[2], command: m[3] }));
 }

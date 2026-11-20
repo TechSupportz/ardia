@@ -29,6 +29,14 @@ test("survivors are only tree members still running the same command, so a reuse
   assert.deepEqual(survivors(tree, APP, later), [11]);
 });
 
+async function until(check, what, deadlineMs = 10_000) {
+  for (const end = Date.now() + deadlineMs; Date.now() < end; await new Promise((ok) => setTimeout(ok, 20))) {
+    const value = check();
+    if (value) return value;
+  }
+  throw new Error(`${what} didn't happen within ${deadlineMs} ms`);
+}
+
 test("stopping a launched tree kills its helpers and spares a process whose arguments merely contain the app path", async () => {
   const dir = mkdtempSync(join(tmpdir(), "bench-procs-"));
   const app = join(dir, "Bench.app");
@@ -37,13 +45,14 @@ test("stopping a launched tree kills its helpers and spares a process whose argu
   copyFileSync("/bin/sleep", exe);
   const helper = spawn(exe, ["30"], { stdio: "ignore" });
   const decoy = spawn("/bin/sh", ["-c", "sleep 30", exe], { stdio: "ignore" });
+  const helperGone = new Promise((ok) => helper.once("exit", (code, signal) => ok(signal)));
   try {
-    await new Promise((ok) => setTimeout(ok, 300));
-    const tree = processTable().filter((p) => p.pid === helper.pid);
-    assert.equal(tree.length, 1);
-    const helperGone = new Promise((ok) => helper.once("exit", (code, signal) => ok(signal)));
+    const tree = await until(() => {
+      const found = processTable().filter((p) => p.pid === helper.pid && p.command.startsWith(exe));
+      return found.length ? found : null;
+    }, "the helper's exec");
     assert.deepEqual(await stopTree(tree, app, { graceMs: 200 }), [helper.pid]);
-    assert.equal(await helperGone, "SIGKILL");
+    assert.equal(await Promise.race([helperGone, new Promise((ok) => setTimeout(() => ok("still running"), 10_000))]), "SIGKILL");
     assert.equal(decoy.exitCode, null);
     assert.equal(decoy.signalCode, null);
   } finally {

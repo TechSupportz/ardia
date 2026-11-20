@@ -51,3 +51,11 @@ test("icon buttons have no press squish and mount no fill before their first hov
   assert.equal(button.match(/\{lit \? <HoverFill /g)?.length, 2);
   assert.doesNotMatch(button, /animatedFace/);
 });
+
+test("a row's Surface renders only when its own look changes, not when the row's children do", () => {
+  const row = src("./SidebarRow.tsx");
+  const body = row.slice(row.indexOf("export function SidebarRowSurface"), row.indexOf("\n}\n", row.indexOf("export function SidebarRowSurface")));
+  assert.match(body, /const surface = useMemo\(/);
+  assert.match(body, /\[fill, cornerRadius, border, stroke, selected, selectedBorder, shadowColor, shadowOpacity, shadowRadius\]/);
+  assert.equal(body.match(/<Surface\b/g)?.length, 1);
+});

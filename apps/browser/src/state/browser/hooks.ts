@@ -127,6 +127,8 @@ export const useTabLayout = (windowId?: string | null): "sidebar" | "top" => use
 
 export const useSidebarSide = (windowId?: string | null): SidebarSide => useBrowser((s) => sidebarSideOf(s, windowId));
 
+export const useTabsPlace = (windowId?: string | null): "top" | SidebarSide => useBrowser((s) => (tabLayoutOf(s, windowId) === "top" ? "top" : sidebarSideOf(s, windowId)));
+
 export const useWindowFullScreen = (windowId?: string | null): boolean => useBrowser((s) => !!windowId && !!s.windows[windowId]?.fullScreen);
 
 export const useDownloads = <T>(windowId: string, select: (downloads: BrowserState["downloads"]) => T): T => useBrowser((s) => select(downloadsIn(s, windowId)));
