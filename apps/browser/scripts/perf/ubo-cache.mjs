@@ -6,15 +6,34 @@ export const UBO_ENGINE_KEYS = ["cache/selfie/staticMain", "cache/selfie/staticN
 
 const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
-export const uboStoreDir = (dataDir) => join(dataDir, "Chromium", "Default", "Local Extension Settings", UBO_ID);
+export const UBO_LOG_FLUSHED_BYTES = 1048576;
 
-export function storeBytes(dir) {
+export const uboStoreDir = (dataDir) => join(dataDir, "Chromium", "Default", "Local Extension Settings", UBO_ID);
+const uboIndexedDb = (dataDir, kind) => join(dataDir, "Chromium", "Default", "IndexedDB", `chrome-extension_${UBO_ID}_0.indexeddb.${kind}`);
+export const uboBlobDir = (dataDir) => uboIndexedDb(dataDir, "blob");
+
+function files(dir, recursive) {
   try {
-    return readdirSync(dir).reduce((sum, name) => sum + statSync(join(dir, name)).size, 0);
+    return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const path = join(dir, e.name);
+      if (e.isDirectory()) return recursive ? files(path, true) : [];
+      return [{ path, size: statSync(path).size }];
+    });
   } catch {
-    return 0;
+    return [];
   }
 }
+
+export const storeBytes = (dir, recursive = false) => files(dir, recursive).reduce((sum, f) => sum + f.size, 0);
+
+export const uboLogBytes = (dataDir) => files(uboStoreDir(dataDir), false).filter((f) => f.path.endsWith(".log")).reduce((sum, f) => sum + f.size, 0);
+
+export function uboSignature(dataDir) {
+  return [uboStoreDir(dataDir), uboIndexedDb(dataDir, "leveldb"), uboBlobDir(dataDir)]
+    .flatMap((dir) => files(dir, true)).map((f) => `${f.path}:${f.size}`).sort().join("\n");
+}
+
+export const uboSettled = (dataDir) => uboLogBytes(dataDir) < UBO_LOG_FLUSHED_BYTES;
 
 export const engineSaved = (keys) => UBO_ENGINE_KEYS.every((key) => keys.includes(key));
 
@@ -46,7 +65,7 @@ async function storedKeys(port) {
   }
 }
 
-export async function waitForUboEngine({ port, dataDir, deadlineMs = 90_000, quietMs = 3000, pollMs = 500, log = () => {} }) {
+export async function waitForUboEngine({ port, dataDir, deadlineMs = 120_000, quietMs = 10_000, pollMs = 500, log = () => {} }) {
   const start = Date.now();
   const end = start + deadlineMs;
   let saved = false;
@@ -55,14 +74,15 @@ export async function waitForUboEngine({ port, dataDir, deadlineMs = 90_000, qui
     if (!saved) await sleep(pollMs);
   }
   if (!saved) throw new Error(`uBlock Origin didn't save its compiled engine within ${deadlineMs / 1000} s; the template would start every run with a cold uBO cache`);
-  const dir = uboStoreDir(dataDir);
-  let bytes = storeBytes(dir);
+  let signature = uboSignature(dataDir);
   let still = Date.now();
-  while (Date.now() - still < quietMs) {
-    if (Date.now() > end) throw new Error(`uBlock Origin's storage kept changing for ${deadlineMs / 1000} s after it saved its engine`);
+  while (Date.now() - still < quietMs || !uboSettled(dataDir)) {
+    if (Date.now() > end) throw new Error(`uBlock Origin's storage didn't settle within ${deadlineMs / 1000} s (log ${(uboLogBytes(dataDir) / 1048576).toFixed(1)} MB)`);
     await sleep(pollMs);
-    const now = storeBytes(dir);
-    if (now !== bytes) (bytes = now), (still = Date.now());
+    const now = uboSignature(dataDir);
+    if (now !== signature) (signature = now), (still = Date.now());
   }
-  log(`uBO saved its compiled engine and its storage is quiet (${Math.round(bytes / 1048576)} MB, ${((Date.now() - start) / 1000).toFixed(1)} s)`);
+  const secs = (Date.now() - start) / 1000;
+  log(`uBO saved its compiled engine and its storage is settled (${Math.round(storeBytes(uboStoreDir(dataDir)) / 1048576)} MB store, ${Math.round(storeBytes(uboBlobDir(dataDir), true) / 1048576)} MB blobs, ${secs.toFixed(1)} s)`);
+  return { secs };
 }

@@ -85,7 +85,7 @@ export const useGroup = <T>(groupId: string | null | undefined, select: (g: TabG
 
 const inert = () => () => {};
 
-function watchShownLive(tabId: string, listener: () => void): () => void {
+export function watchShownLive(tabId: string, listener: () => void): () => void {
   const offLive = watchLive(tabId, listener);
   const offTab = watchTabRecord(tabId, listener);
   return () => {

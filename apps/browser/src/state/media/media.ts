@@ -320,7 +320,7 @@ export function usePictureInPicture(tabId: string): [boolean, (press: GestureRes
   return [on, (press) => void togglePictureInPicture(tabId, controlPress(press))];
 }
 
-useBrowser.subscribe((s, prev) => {
+useBrowser.subscribeTo(["tabs"], (s, prev) => {
   if (s.tabs === prev.tabs) return;
   const m = useMedia.getState();
   const gone = [...new Set(PER_TAB.flatMap((k) => Object.keys(m[k])))].filter((id) => !s.tabs[id]);

@@ -21,7 +21,7 @@ export { ProgressTrack } from "./ProgressTrack";
 export { GradientFill, type GradientStop } from "./GradientFill";
 export { curve, duration, legsEasing, nativeLoop, period, spring, springs, springSpec, usePresence, type Fade, type LoopLeg, type SpringSpec } from "./motion";
 export { reduceMotion, reduceMotionKnown } from "./reduceMotion";
-export { PANEL, PanelCloseButton, PanelHeader, Popover, POPOVER_MARGIN, POPOVER_MOTION, PopoverSurface, PopoverValue, usePopoverMotion, usePopoverMotionStyle, usePopoverPresence } from "./Popover";
+export { PANEL, PanelCloseButton, PanelHeader, Popover, POPOVER_MARGIN, POPOVER_MOTION, PopoverSurface, PopoverValue, usePopoverMotion, usePanelsPresence, usePopoverMotionStyle, usePopoverPresence, type PanelPresence } from "./Popover";
 export { Radio } from "./Radio";
 export { Segmented, type SegmentOption } from "./Segmented";
 export { SlidingThumb, useSlidingThumb } from "./SlidingThumb";

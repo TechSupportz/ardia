@@ -228,8 +228,8 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
                           regions={page.regions}
                           viewport={listViewport}
                         />
-                        <View key={`${docked ? "docked" : "inline"}${canDock ? "" : ":fixed"}${resting ? ":resting" : ""}`} onLayout={onSlack} style={{ flexGrow: 1, minHeight: !canDock && inlineNewTab ? 24 : 0 }}>
-                          <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void openSidebarMenu(windowId)}>
+                        <View key={`${docked ? "docked" : "inline"}${canDock ? "" : ":fixed"}${resting ? ":resting" : ""}`} style={{ flexGrow: 1, minHeight: !canDock && inlineNewTab ? 24 : 0 }}>
+                          <ContextMenuArea style={{ flex: 1 }} onLayout={onSlack} onContextMenu={() => void openSidebarMenu(windowId)}>
                             <WindowDragRegion style={{ flex: 1 }} titleBarDoubleClick={false} onRegionDoubleClick={() => toggleNewTabBar(windowId) || newTab(windowId, { newTabCommand: true })} />
                           </ContextMenuArea>
                         </View>
