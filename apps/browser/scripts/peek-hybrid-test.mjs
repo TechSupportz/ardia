@@ -393,15 +393,23 @@ try {
     await sleep(300);
     const clicks = await page.eval(`__clicks`);
     page.close();
-    const scrollAt = await run(`return globalThis.expo.modules.ArdiaPeekStage.devPostScroll("w1", ${shown.x}, ${shown.y + 100}, -120).then(() => settle(400));`);
+    const scrollAt = await run(`return globalThis.expo.modules.ArdiaPeekStage.devPostScroll("w1", ${shown.x}, ${shown.y + 100}, -120).then((r) => settle(400).then(() => r));`);
     const page2 = await app.page("page.html?n=in");
     const wheel = await page2.eval(`({ wheel: __wheel, y: scrollY })`);
+    const edge = { x: o.x + g.rest.x + 12 * k, y: o.y + g.rest.y + 600 * k };
+    await page2.eval(`__wheel.length = 0; 0`);
+    const edgeAt = await run(`return globalThis.expo.modules.ArdiaPeekStage.devPostScroll("w1", ${edge.x}, ${edge.y}, -120).then((r) => settle(400).then(() => r));`);
+    const edgeWheel = await page2.eval(`__wheel`);
     await run(`return ac.engine.call("windows.list", {}).then((l) => l.find((w) => w.hasRoot)).then((w) => ac.engine.call("windows.dev", { window: w.window, action: "mouse:moved:${Math.round(shown.x)},${Math.round(shown.y)}" })).then(() => settle(300));`).catch((e) => (record.hoverError = String(e)));
     const over = await page2.eval(`__over.slice(-5)`);
     page2.close();
-    Object.assign(record, { warp, during, click, clicks, shown, k, scrollAt, wheel, over });
-    record.scrollNote = "a window-less synthetic wheel event can't be dispatched by AppKit; real wheel events are checked by hand";
+    Object.assign(record, { warp, during, click, clicks, shown, k, scrollAt, wheel, over, edge, edgeAt, edgeWheel });
     assert.ok(over.includes("hit"), `hover reached the target: ${JSON.stringify(over)}`);
+    assert.ok(scrollAt.window > 0, `the test wheel event has a window: ${JSON.stringify(scrollAt)}`);
+    assert.ok(wheel.wheel.length > 0, "a wheel over the Peek reached its page");
+    assert.ok(wheel.y > 0, `the Peek's page scrolled: ${wheel.y}`);
+    assert.ok(edgeWheel.length > 0, "a wheel near the Peek page's left edge reached its page, not the page behind");
+    near(edgeWheel[0][0], 12, 2, "edge wheel page x");
     assert.equal(warp.offPeek, true, "a press off the page during the warp leaves the Peek open");
     if (warp.entrance === "genie" && warp.offPhase === "entering") {
       assert.equal(warp.onPhase, "open", "a press over the page during the warp ends the entrance");

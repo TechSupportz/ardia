@@ -9,8 +9,8 @@ enum PeekInputRoute {
 
   static var routed: Routed?
 
-  private typealias SetWindowLocation = @convention(c) (CGEvent, CGPoint) -> Void
-  private static let setWindowLocation = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGEventSetWindowLocation")
+  typealias SetWindowLocation = @convention(c) (CGEvent, CGPoint) -> Void
+  static let setWindowLocation = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGEventSetWindowLocation")
     .map { unsafeBitCast($0, to: SetWindowLocation.self) }
 
   private static let mask: NSEvent.EventTypeMask = [
